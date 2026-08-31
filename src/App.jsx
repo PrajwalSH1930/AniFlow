@@ -6,6 +6,7 @@ import Explore from './pages/Explore';
 import AnimeDetails from './pages/AnimeDetails';
 import Watchlist from './pages/Watchlist';
 import { WatchlistProvider } from './context/WatchlistContext';
+import Footer from './components/Footer';
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
               <Route path="/watchlist" element={<Watchlist />} />
             </Routes>
           </main>
+          <Footer/>
         </div>
       </Router>
     </WatchlistProvider>
