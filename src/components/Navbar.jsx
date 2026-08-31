@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Search, Flame, Compass, Bookmark, Tv } from 'lucide-react';
+import AniFlowLogo from './AniFlowLogo';
 
 export default function Navbar() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -20,10 +21,8 @@ export default function Navbar() {
         
         {/* Brand Logo */}
         <Link to="/" className="flex items-center gap-2 text-xl font-bold tracking-wider text-white group">
-          <div className="bg-brand-primary p-2 rounded-lg group-hover:bg-brand-accent transition-colors">
-            <Tv className="w-5 h-5 text-white" />
-          </div>
-          <span>Ani<span className="text-brand-primary group-hover:text-brand-accent transition-colors">Flow</span></span>
+          {/* <div className="bg-brand-primary p-2 rounded-lg group-hover:bg-brand-accent transition-colors"> */}
+            <AniFlowLogo className="w-9 h-9" withText={true} />
         </Link>
 
         {/* Search Bar */}
