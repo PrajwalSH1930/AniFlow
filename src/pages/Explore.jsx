@@ -4,6 +4,7 @@ import { animeService } from '../services/kitsuApi';
 import { useDebounce } from '../hooks/useDebounce';
 import AnimeCard from '../components/AnimeCard';
 import { Search, SlidersHorizontal, ChevronLeft, ChevronRight, Loader2, Sparkles } from 'lucide-react';
+import { AnimeCardSkeleton } from '../components/Skeleton';
 
 const SORT_OPTIONS = [
   { label: 'Most Popular', value: '-userCount' },
@@ -210,13 +211,10 @@ export default function Explore() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 -mx-10 sm:gap-6">
           {loading
             ? Array.from({ length: ITEMS_PER_PAGE }).map((_, idx) => (
-                <div
-                  key={idx}
-                  className="aspect-[3/4] bg-slate-900/60 rounded-xl border border-slate-800 animate-pulse"
-                />
+                <AnimeCardSkeleton key={idx} />
               ))
             : animeList.map((anime) => (
                 <div key={anime.id} className="flex justify-center">

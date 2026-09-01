@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import AnimeCard from './AnimeCard';
+import { AnimeCardSkeleton } from './Skeleton';
 
 export default function AnimeCarousel({ title, icon: Icon, items = [], loading = false }) {
   const scrollContainerRef = useRef(null);
@@ -46,7 +47,7 @@ export default function AnimeCarousel({ title, icon: Icon, items = [], loading =
           </div>
         </div>
 
-        {/* Card Track / Skeleton Loader */}
+        {/* Card Track */}
         <div
           ref={scrollContainerRef}
           className="flex gap-4 overflow-x-auto scrollbar-none scroll-smooth pb-2 -mx-4 px-4 sm:mx-0 sm:px-0"
@@ -54,10 +55,7 @@ export default function AnimeCarousel({ title, icon: Icon, items = [], loading =
         >
           {loading
             ? Array.from({ length: 6 }).map((_, idx) => (
-                <div
-                  key={idx}
-                  className="flex-shrink-0 w-44 sm:w-52 aspect-[3/4] bg-slate-900/80 rounded-xl border border-slate-800 animate-pulse"
-                />
+                <AnimeCardSkeleton key={idx} />
               ))
             : items.map((anime) => <AnimeCard key={anime.id} anime={anime} />)}
         </div>

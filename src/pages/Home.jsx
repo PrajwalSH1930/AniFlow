@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { animeService } from '../services/kitsuApi';
 import HeroSpotlight from '../components/HeroSpotlight';
 import AnimeCarousel from '../components/AnimeCarousel';
+import { HeroSpotlightSkeleton } from '../components/Skeleton';
 import { Flame, Trophy, Sparkles } from 'lucide-react';
 
 export default function Home() {
@@ -49,7 +50,7 @@ export default function Home() {
     <div className="pb-16 space-y-4">
       {/* Spotlight Hero Section */}
       {loading ? (
-        <div className="w-full min-h-[460px] bg-slate-900/60 animate-pulse" />
+        <HeroSpotlightSkeleton />
       ) : (
         <HeroSpotlight anime={spotlightAnime} />
       )}

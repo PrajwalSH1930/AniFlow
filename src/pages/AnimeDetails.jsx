@@ -11,7 +11,7 @@ import {
   Users,
   Heart
 } from 'lucide-react';
-
+import { AnimeDetailsSkeleton } from '../components/Skeleton';
 const CHUNK_SIZE = 50;
 
 export default function AnimeDetails() {
@@ -68,13 +68,8 @@ export default function AnimeDetails() {
   }, [id]);
 
   if (loading) {
-    return (
-      <div className="min-h-[80vh] flex flex-col items-center justify-center space-y-4">
-        <div className="w-12 h-12 border-4 border-brand-primary border-t-transparent rounded-full animate-spin" />
-        <p className="text-sm text-slate-400">Loading anime details...</p>
-      </div>
-    );
-  }
+  return <AnimeDetailsSkeleton />;
+}
 
   if (error || !anime) {
     return (

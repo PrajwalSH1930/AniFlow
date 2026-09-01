@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useToast } from './ToastContext';
 
-const WatchlistContext = createContext();
+const WatchlistContext = createContext(null);
 
 const STORAGE_KEY = 'aniflow_watchlist_v1';
 
@@ -12,6 +13,7 @@ export const WATCHLIST_STATUSES = {
 };
 
 export function WatchlistProvider({ children }) {
+  const { addToast } = useToast();
   const [watchlist, setWatchlist] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -30,48 +32,52 @@ export function WatchlistProvider({ children }) {
     }
   }, [watchlist]);
 
-  // Check if anime is in watchlist
   const isInWatchlist = (animeId) => {
     return watchlist.some((item) => String(item.id) === String(animeId));
   };
 
-  // Get item status if present
   const getWatchStatus = (animeId) => {
     const item = watchlist.find((item) => String(item.id) === String(animeId));
     return item ? item.watchStatus : null;
   };
 
-  // Add or update status
   const addToWatchlist = (anime, status = WATCHLIST_STATUSES.PLAN_TO_WATCH) => {
-    setWatchlist((prev) => {
-      const existsIndex = prev.findIndex((item) => String(item.id) === String(anime.id));
-      const entry = {
-        id: anime.id,
-        canonicalTitle: anime.canonicalTitle,
-        posterImage: anime.posterImage,
-        averageRating: anime.averageRating,
-        subtype: anime.subtype,
-        episodeCount: anime.episodeCount,
-        status: anime.status,
-        watchStatus: status,
-        addedAt: new Date().toISOString(),
-      };
+    if (!anime?.id) return;
 
-      if (existsIndex > -1) {
+    const existsIndex = watchlist.findIndex((item) => String(item.id) === String(anime.id));
+    const entry = {
+      id: anime.id,
+      canonicalTitle: anime.canonicalTitle,
+      posterImage: anime.posterImage,
+      averageRating: anime.averageRating,
+      subtype: anime.subtype,
+      episodeCount: anime.episodeCount,
+      status: anime.status,
+      watchStatus: status,
+      addedAt: new Date().toISOString(),
+    };
+
+    if (existsIndex > -1) {
+      setWatchlist((prev) => {
         const updated = [...prev];
         updated[existsIndex] = { ...updated[existsIndex], ...entry, watchStatus: status };
         return updated;
-      }
-      return [entry, ...prev];
-    });
+      });
+      addToast(`Updated status to "${status}"`, 'info');
+    } else {
+      setWatchlist((prev) => [entry, ...prev]);
+      addToast(`Added "${anime.canonicalTitle}" to Watchlist`, 'success');
+    }
   };
 
-  // Remove by ID
   const removeFromWatchlist = (animeId) => {
-    setWatchlist((prev) => prev.filter((item) => String(item.id) !== String(animeId)));
+    const item = watchlist.find((i) => String(i.id) === String(animeId));
+    if (!item) return;
+
+    setWatchlist((prev) => prev.filter((entry) => String(entry.id) !== String(animeId)));
+    addToast(`Removed "${item.canonicalTitle}" from Watchlist`, 'warning');
   };
 
-  // Toggle quick bookmark
   const toggleWatchlist = (anime) => {
     if (isInWatchlist(anime.id)) {
       removeFromWatchlist(anime.id);
@@ -80,9 +86,10 @@ export function WatchlistProvider({ children }) {
     }
   };
 
-  // Clear everything
   const clearWatchlist = () => {
+    if (watchlist.length === 0) return;
     setWatchlist([]);
+    addToast('Watchlist cleared', 'warning');
   };
 
   return (
