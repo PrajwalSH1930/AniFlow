@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Star, Tv, Bookmark } from 'lucide-react';
 import { useWatchlist } from '../context/WatchlistContext';
+import ImageWithFallback from './ImageWithFallback';
 
 export default function AnimeCard({ anime }) {
   const { isInWatchlist, toggleWatchlist } = useWatchlist();
@@ -20,20 +21,14 @@ export default function AnimeCard({ anime }) {
       to={`/anime/${anime.id}`}
       className="group flex-shrink-0 w-44 sm:w-52 flex flex-col bg-slate-900/60 rounded-xl overflow-hidden border border-slate-800/80 hover:border-brand-primary/50 transition-all duration-300 hover:shadow-xl hover:shadow-brand-primary/10 hover:-translate-y-1.5"
     >
-      {/* Poster Image & Overlay Badge */}
+      {/* Poster Image with Fallback */}
       <div className="relative aspect-[3/4] w-full overflow-hidden bg-slate-800">
-        {anime.posterImage ? (
-          <img
-            src={anime.posterImage}
-            alt={anime.canonicalTitle}
-            loading="lazy"
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-slate-500 text-xs">
-            No Image
-          </div>
-        )}
+        <ImageWithFallback
+          src={anime.posterImage}
+          alt={anime.canonicalTitle}
+          loading="lazy"
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
+        />
 
         {/* Quick Bookmark Button */}
         <button
