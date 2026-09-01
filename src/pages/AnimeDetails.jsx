@@ -59,8 +59,8 @@ export default function AnimeDetails() {
 
         const [detailsData, episodesData, castingsData] = await Promise.all([
           animeService.getAnimeDetails(id),
-          animeService.getAnimeEpisodes(id, 300),
-          animeService.getAnimeCastings(id, 40),
+          animeService.getAnimeEpisodes(id, 1000),
+          animeService.getAnimeCastings(id, 100),
         ]);
 
         if (!isCancelled) {

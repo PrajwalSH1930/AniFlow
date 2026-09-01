@@ -126,7 +126,7 @@ export const animeService = {
 };
 
 // Fetch all episodes by looping through Kitsu's 20-item pages
-export async function getAllAnimeEpisodes(animeId, maxLimit = 100) {
+export async function getAllAnimeEpisodes(animeId, maxLimit = 1000) {
   let allEpisodes = [];
   let offset = 0;
   const pageSize = 20;
@@ -161,63 +161,77 @@ export async function getAllAnimeEpisodes(animeId, maxLimit = 100) {
 
 // Fetch character roster and linked voice actors
 // Fetch character roster and aggregate multiple voice actors under a single character entry
-export async function getAnimeCastings(animeId, limit = 40) {
+// Fetch character roster and aggregate multiple voice actors under a single character entry
+export async function getAnimeCastings(animeId, maxLimit = 100) {
+  const characterMap = new Map();
+  let offset = 0;
+  const pageSize = 20; // Hard max limit for Kitsu API
+  let hasMore = true;
+
   try {
-    const data = await fetchKitsu('/castings', {
-      'filter[media_type]': 'Anime',
-      'filter[media_id]': animeId,
-      'filter[is_character]': 'true',
-      'include': 'character,person',
-      'page[limit]': Math.min(limit, 40),
-    });
+    while (hasMore) {
+      const data = await fetchKitsu('/castings', {
+        'filter[media_type]': 'Anime',
+        'filter[media_id]': animeId,
+        'filter[is_character]': 'true',
+        'include': 'character,person',
+        'page[limit]': pageSize,
+        'page[offset]': offset,
+      });
 
-    const included = data.included || [];
+      const castingsList = data.data || [];
+      const included = data.included || [];
 
-    const findIncluded = (type, id) => {
-      if (!id) return null;
-      return included.find((item) => item.type === type && String(item.id) === String(id));
-    };
+      const findIncluded = (type, id) => {
+        if (!id) return null;
+        return included.find((item) => item.type === type && String(item.id) === String(id));
+      };
 
-    const characterMap = new Map();
+      castingsList.forEach((cast) => {
+        const charRel = cast.relationships?.character?.data;
+        const personRel = cast.relationships?.person?.data;
 
-    (data.data || []).forEach((cast) => {
-      const charRel = cast.relationships?.character?.data;
-      const personRel = cast.relationships?.person?.data;
+        const charItem = charRel ? findIncluded(charRel.type, charRel.id) : null;
+        if (!charItem) return;
 
-      const charItem = charRel ? findIncluded(charRel.type, charRel.id) : null;
-      if (!charItem) return;
+        const charId = String(charItem.id);
+        const personItem = personRel ? findIncluded(personRel.type, personRel.id) : null;
 
-      const charId = String(charItem.id);
-      const personItem = personRel ? findIncluded(personRel.type, personRel.id) : null;
+        const role = cast.attributes?.role || 'Supporting';
+        const language = cast.attributes?.voiceActor ? 'Japanese' : (cast.attributes?.language || 'Voice Actor');
 
-      const role = cast.attributes?.role || 'Supporting';
-      const language = cast.attributes?.voiceActor ? 'Japanese' : (cast.attributes?.language || 'Voice Actor');
+        const vaEntry = personItem
+          ? {
+              id: personItem.id,
+              name: personItem.attributes?.name || 'Unknown Actor',
+              image: personItem.attributes?.image?.original || personItem.attributes?.image?.medium || null,
+              language: language,
+            }
+          : null;
 
-      const vaEntry = personItem
-        ? {
-            id: personItem.id,
-            name: personItem.attributes?.name || 'Unknown Actor',
-            image: personItem.attributes?.image?.original || personItem.attributes?.image?.medium || null,
-            language: language,
+        if (!characterMap.has(charId)) {
+          characterMap.set(charId, {
+            id: charId,
+            name: charItem.attributes?.canonicalName || charItem.attributes?.names?.en || 'Unknown Character',
+            image: charItem.attributes?.image?.original || charItem.attributes?.image?.medium || null,
+            role: role,
+            voiceActors: vaEntry ? [vaEntry] : [],
+          });
+        } else {
+          const existing = characterMap.get(charId);
+          if (vaEntry && !existing.voiceActors.some((v) => String(v.id) === String(vaEntry.id))) {
+            existing.voiceActors.push(vaEntry);
           }
-        : null;
-
-      if (!characterMap.has(charId)) {
-        characterMap.set(charId, {
-          id: charId,
-          name: charItem.attributes?.canonicalName || charItem.attributes?.names?.en || 'Unknown Character',
-          image: charItem.attributes?.image?.original || charItem.attributes?.image?.medium || null,
-          role: role,
-          voiceActors: vaEntry ? [vaEntry] : [],
-        });
-      } else {
-        const existing = characterMap.get(charId);
-        // Avoid duplicate VAs if present in response
-        if (vaEntry && !existing.voiceActors.some((v) => String(v.id) === String(vaEntry.id))) {
-          existing.voiceActors.push(vaEntry);
         }
+      });
+
+      // Stop pagination if we reached the end or max requested limit
+      if (castingsList.length < pageSize || characterMap.size >= maxLimit) {
+        hasMore = false;
+      } else {
+        offset += pageSize;
       }
-    });
+    }
 
     return Array.from(characterMap.values());
   } catch (err) {
