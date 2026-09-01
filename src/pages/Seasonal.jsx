@@ -23,7 +23,7 @@ const SEASONS = [
 ];
 
 const CURRENT_YEAR = new Date().getFullYear();
-const YEARS = Array.from({ length: 8 }, (_, i) => CURRENT_YEAR - i + 1); // Next year down to past 6 years
+const YEARS = Array.from({ length: 8 }, (_, i) => CURRENT_YEAR + 1 - i); // Next year down to past 6 years
 const ITEMS_PER_PAGE = 18;
 
 export default function Seasonal() {
@@ -190,7 +190,7 @@ export default function Seasonal() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 -mx-10 sm:mx-0 sm:gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 lg:-mx-10 gap-4 sm:gap-6">
           {loading
             ? Array.from({ length: ITEMS_PER_PAGE }).map((_, idx) => (
                 <AnimeCardSkeleton key={idx} />

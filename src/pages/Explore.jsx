@@ -169,7 +169,7 @@ export default function Explore() {
               <button
                 key={genre.label}
                 onClick={() => handleCategorySelect(genre.slug)}
-                className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
+                className={`shrink-0 whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
                   isActive
                     ? 'bg-brand-primary text-white shadow-md shadow-brand-primary/25'
                     : 'bg-slate-900/80 text-slate-300 border border-slate-800 hover:bg-slate-800 hover:text-white'
@@ -211,7 +211,7 @@ export default function Explore() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 -mx-10 sm:mx-0 sm:gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 lg:-mx-10 gap-4 sm:gap-6">
           {loading
             ? Array.from({ length: ITEMS_PER_PAGE }).map((_, idx) => (
                 <AnimeCardSkeleton key={idx} />

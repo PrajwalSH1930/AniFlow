@@ -178,7 +178,7 @@ export default function AnimeDetails() {
         <div className="flex flex-col md:flex-row gap-8 items-start">
           
           {/* Left Column: Poster, Progress, Watchlist & Streaming Outlets */}
-          <div className="w-48 sm:w-60 md:w-64 flex-shrink-0 mx-auto md:mx-0 space-y-4">
+          <div className="w-full max-w-sm md:max-w-none md:w-64 flex-shrink-0 mx-auto md:mx-0 space-y-4">
             <div className="rounded-2xl overflow-hidden shadow-2xl border border-slate-800/80 bg-slate-900">
               <ImageWithFallback
                 src={anime.posterImage}
