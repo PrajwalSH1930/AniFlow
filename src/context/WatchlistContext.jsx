@@ -4,6 +4,7 @@ import { useToast } from './ToastContext';
 const WatchlistContext = createContext(null);
 
 const STORAGE_KEY = 'aniflow_watchlist_v1';
+const EPISODES_STORAGE_KEY = 'aniflow_watched_episodes_v1';
 
 export const WATCHLIST_STATUSES = {
   PLAN_TO_WATCH: 'Plan to Watch',
@@ -14,6 +15,8 @@ export const WATCHLIST_STATUSES = {
 
 export function WatchlistProvider({ children }) {
   const { addToast } = useToast();
+
+  // Watchlist entries state
   const [watchlist, setWatchlist] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -24,6 +27,17 @@ export function WatchlistProvider({ children }) {
     }
   });
 
+  // Watched episodes dictionary: { [animeId]: [episodeId1, episodeId2, ...] }
+  const [watchedEpisodes, setWatchedEpisodes] = useState(() => {
+    try {
+      const saved = localStorage.getItem(EPISODES_STORAGE_KEY);
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      console.error('Failed to parse watched episodes from localStorage', e);
+      return {};
+    }
+  });
+
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(watchlist));
@@ -31,6 +45,14 @@ export function WatchlistProvider({ children }) {
       console.error('Failed to save watchlist to localStorage', e);
     }
   }, [watchlist]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(EPISODES_STORAGE_KEY, JSON.stringify(watchedEpisodes));
+    } catch (e) {
+      console.error('Failed to save watched episodes to localStorage', e);
+    }
+  }, [watchedEpisodes]);
 
   const isInWatchlist = (animeId) => {
     return watchlist.some((item) => String(item.id) === String(animeId));
@@ -89,7 +111,54 @@ export function WatchlistProvider({ children }) {
   const clearWatchlist = () => {
     if (watchlist.length === 0) return;
     setWatchlist([]);
+    setWatchedEpisodes({});
     addToast('Watchlist cleared', 'warning');
+  };
+
+  // Episode tracking helpers
+  const isEpisodeWatched = (animeId, episodeId) => {
+    const list = watchedEpisodes[String(animeId)] || [];
+    return list.includes(String(episodeId));
+  };
+
+  const toggleEpisodeWatched = (anime, episodeId) => {
+    const aId = String(anime.id);
+    const epId = String(episodeId);
+
+    setWatchedEpisodes((prev) => {
+      const currentList = prev[aId] || [];
+      const isWatched = currentList.includes(epId);
+      const updatedList = isWatched
+        ? currentList.filter((id) => id !== epId)
+        : [...currentList, epId];
+
+      return {
+        ...prev,
+        [aId]: updatedList,
+      };
+    });
+
+    // Automatically add anime to "Watching" if not in list
+    if (!isInWatchlist(anime.id)) {
+      addToWatchlist(anime, WATCHLIST_STATUSES.WATCHING);
+    }
+  };
+
+  const markAllEpisodes = (anime, episodeIds = [], markAs = true) => {
+    const aId = String(anime.id);
+    setWatchedEpisodes((prev) => ({
+      ...prev,
+      [aId]: markAs ? episodeIds.map(String) : [],
+    }));
+
+    if (markAs && !isInWatchlist(anime.id)) {
+      addToWatchlist(anime, WATCHLIST_STATUSES.COMPLETED);
+    }
+    addToast(markAs ? 'Marked all episodes as watched' : 'Cleared episode progress', 'info');
+  };
+
+  const getWatchedCount = (animeId) => {
+    return (watchedEpisodes[String(animeId)] || []).length;
   };
 
   return (
@@ -102,6 +171,10 @@ export function WatchlistProvider({ children }) {
         removeFromWatchlist,
         toggleWatchlist,
         clearWatchlist,
+        isEpisodeWatched,
+        toggleEpisodeWatched,
+        markAllEpisodes,
+        getWatchedCount,
       }}
     >
       {children}

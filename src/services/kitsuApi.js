@@ -108,7 +108,8 @@ export const animeService = {
 
   // Episodes for an anime
   // Episodes for an anime (max page limit: 20)
-    getAnimeEpisodes: getAllAnimeEpisodes,
+  getAnimeEpisodes: getAllAnimeEpisodes,
+  getAnimeCastings: getAnimeCastings,
 
   // Categories / Genres
   getCategories: async (limit = 40) => {
@@ -156,4 +157,71 @@ export async function getAllAnimeEpisodes(animeId, maxLimit = 100) {
   }
 
   return allEpisodes;
+}
+
+// Fetch character roster and linked voice actors
+// Fetch character roster and aggregate multiple voice actors under a single character entry
+export async function getAnimeCastings(animeId, limit = 40) {
+  try {
+    const data = await fetchKitsu('/castings', {
+      'filter[media_type]': 'Anime',
+      'filter[media_id]': animeId,
+      'filter[is_character]': 'true',
+      'include': 'character,person',
+      'page[limit]': Math.min(limit, 40),
+    });
+
+    const included = data.included || [];
+
+    const findIncluded = (type, id) => {
+      if (!id) return null;
+      return included.find((item) => item.type === type && String(item.id) === String(id));
+    };
+
+    const characterMap = new Map();
+
+    (data.data || []).forEach((cast) => {
+      const charRel = cast.relationships?.character?.data;
+      const personRel = cast.relationships?.person?.data;
+
+      const charItem = charRel ? findIncluded(charRel.type, charRel.id) : null;
+      if (!charItem) return;
+
+      const charId = String(charItem.id);
+      const personItem = personRel ? findIncluded(personRel.type, personRel.id) : null;
+
+      const role = cast.attributes?.role || 'Supporting';
+      const language = cast.attributes?.voiceActor ? 'Japanese' : (cast.attributes?.language || 'Voice Actor');
+
+      const vaEntry = personItem
+        ? {
+            id: personItem.id,
+            name: personItem.attributes?.name || 'Unknown Actor',
+            image: personItem.attributes?.image?.original || personItem.attributes?.image?.medium || null,
+            language: language,
+          }
+        : null;
+
+      if (!characterMap.has(charId)) {
+        characterMap.set(charId, {
+          id: charId,
+          name: charItem.attributes?.canonicalName || charItem.attributes?.names?.en || 'Unknown Character',
+          image: charItem.attributes?.image?.original || charItem.attributes?.image?.medium || null,
+          role: role,
+          voiceActors: vaEntry ? [vaEntry] : [],
+        });
+      } else {
+        const existing = characterMap.get(charId);
+        // Avoid duplicate VAs if present in response
+        if (vaEntry && !existing.voiceActors.some((v) => String(v.id) === String(vaEntry.id))) {
+          existing.voiceActors.push(vaEntry);
+        }
+      }
+    });
+
+    return Array.from(characterMap.values());
+  } catch (err) {
+    console.warn(`Could not load castings for anime ID ${animeId}:`, err);
+    return [];
+  }
 }
