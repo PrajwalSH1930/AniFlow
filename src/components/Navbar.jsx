@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Flame, Compass, Bookmark, Tv } from 'lucide-react';
+import { Search, Flame, Compass, Bookmark, Tv, Calendar } from 'lucide-react';
 import AniFlowLogo from './AniFlowLogo';
 
 export default function Navbar() {
@@ -51,8 +51,11 @@ export default function Navbar() {
             <Bookmark className="w-4 h-4" />
             <span className="hidden md:inline">Watchlist</span>
           </Link>
+        <Link to="/seasonal" className="flex items-center gap-1.5 hover:text-brand-primary transition-colors">
+          <Calendar className="w-4 h-4" />
+          <span className="hidden md:inline">Seasonal</span>
+        </Link>
         </div>
-
       </div>
     </nav>
   );

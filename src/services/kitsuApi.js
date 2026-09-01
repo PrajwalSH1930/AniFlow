@@ -31,26 +31,37 @@ export async function fetchKitsu(endpoint, params = {}) {
 // Data normalizer: flattens raw Kitsu JSON:API items into clean JS objects
 export function normalizeAnime(item) {
   if (!item) return null;
-  const { id, attributes } = item;
+  const { id, attributes = {}, relationships = {} } = item;
 
   return {
     id,
-    canonicalTitle: attributes.canonicalTitle || attributes.titles?.en || attributes.titles?.en_jp || 'Unknown Title',
+    slug: attributes.slug || '',
+    canonicalTitle: attributes.canonicalTitle || attributes.titles?.en || attributes.titles?.en_us || 'Unknown Title',
     japaneseTitle: attributes.titles?.ja_jp || '',
-    synopsis: attributes.synopsis || 'No synopsis available.',
+    romajiTitle: attributes.titles?.en_jp || '',
+    abbreviatedTitles: attributes.abbreviatedTitles || [],
+    synopsis: attributes.synopsis || attributes.description || 'No synopsis available.',
     averageRating: attributes.averageRating ? parseFloat(attributes.averageRating).toFixed(1) : 'N/A',
+    ratingFrequencies: attributes.ratingFrequencies || {},
     userCount: attributes.userCount || 0,
     favoritesCount: attributes.favoritesCount || 0,
+    popularityRank: attributes.popularityRank || null,
+    ratingRank: attributes.ratingRank || null,
     startDate: attributes.startDate || 'TBA',
-    endDate: attributes.endDate || '',
+    endDate: attributes.endDate || null,
     status: attributes.status || 'Unknown',
-    ageRatingGuide: attributes.ageRatingGuide || attributes.ageRating || 'Unrated',
+    ageRating: attributes.ageRating || 'Unrated',
+    ageRatingGuide: attributes.ageRatingGuide || attributes.ageRating || 'General Audience',
     episodeCount: attributes.episodeCount || '?',
     episodeLength: attributes.episodeLength || null,
-    posterImage: attributes.posterImage?.large || attributes.posterImage?.medium || attributes.posterImage?.original || '',
-    coverImage: attributes.coverImage?.large || attributes.coverImage?.original || null,
+    totalLength: attributes.totalLength || null,
+    posterImage: attributes.posterImage?.large || attributes.posterImage?.original || attributes.posterImage?.medium || '',
+    coverImage: attributes.coverImage?.large || attributes.coverImage?.original || attributes.coverImage?.small || null,
     youtubeVideoId: attributes.youtubeVideoId || null,
-    subtype: attributes.subtype || 'TV', // TV, movie, OVA, etc.
+    subtype: attributes.subtype || 'TV',
+    showType: attributes.showType || attributes.subtype || 'TV',
+    nsfw: Boolean(attributes.nsfw),
+    relationships,
   };
 }
 
@@ -110,6 +121,10 @@ export const animeService = {
   // Episodes for an anime (max page limit: 20)
   getAnimeEpisodes: getAllAnimeEpisodes,
   getAnimeCastings: getAnimeCastings,
+  getSeasonalAnime: getSeasonalAnime,
+  getAnimeStreamingLinks: getAnimeStreamingLinks,
+  getAnimeReviews: getAnimeReviews,
+  getAnimeRelations: getAnimeRelations,
 
   // Categories / Genres
   getCategories: async (limit = 40) => {
@@ -236,6 +251,143 @@ export async function getAnimeCastings(animeId, maxLimit = 100) {
     return Array.from(characterMap.values());
   } catch (err) {
     console.warn(`Could not load castings for anime ID ${animeId}:`, err);
+    return [];
+  }
+}
+
+// Seasonal query helper
+export async function getSeasonalAnime({ year = new Date().getFullYear(), season = 'fall', limit = 20, offset = 0 }) {
+  // Season date ranges for ISO boundary queries
+  const seasonRanges = {
+    winter: { start: `${year}-01-01`, end: `${year}-03-31` },
+    spring: { start: `${year}-04-01`, end: `${year}-06-30` },
+    summer: { start: `${year}-07-01`, end: `${year}-09-30` },
+    fall: { start: `${year}-10-01`, end: `${year}-12-31` },
+  };
+
+  const range = seasonRanges[season.toLowerCase()] || seasonRanges.fall;
+
+  const params = {
+    'filter[seasonYear]': year,
+    'filter[season]': season.toLowerCase(),
+    'sort': '-userCount',
+    'page[limit]': Math.min(limit, 20),
+    'page[offset]': offset,
+  };
+
+  try {
+    let data = await fetchKitsu('/anime', params);
+
+    // If seasonYear/season returns empty or unsupported for certain archives, fallback to date range query
+    if (!data.data || data.data.length === 0) {
+      data = await fetchKitsu('/anime', {
+        'filter[startDate]': `${range.start}..${range.end}`,
+        'sort': '-userCount',
+        'page[limit]': Math.min(limit, 20),
+        'page[offset]': offset,
+      });
+    }
+
+    return {
+      data: (data.data || []).map(normalizeAnime),
+      meta: data.meta || { count: 0 },
+    };
+  } catch (err) {
+    console.error(`Error loading seasonal anime for ${season} ${year}:`, err);
+    return { data: [], meta: { count: 0 } };
+  }
+}
+
+// 1. Fetch Official Streaming Links (Crunchyroll, Netflix, Hulu, etc.)
+export async function getAnimeStreamingLinks(animeId) {
+  try {
+    const data = await fetchKitsu(`/anime/${animeId}/streaming-links`, {
+      include: 'streamer',
+    });
+    const included = data.included || [];
+
+    return (data.data || []).map((item) => {
+      const streamerRel = item.relationships?.streamer?.data;
+      const streamerObj = streamerRel
+        ? included.find((inc) => inc.type === 'streamers' && String(inc.id) === String(streamerRel.id))
+        : null;
+
+      return {
+        id: item.id,
+        url: item.attributes?.url,
+        subs: item.attributes?.subs || [],
+        dubs: item.attributes?.dubs || [],
+        streamerName: streamerObj?.attributes?.siteName || 'Streaming Service',
+        streamerLogo: streamerObj?.attributes?.logo || null,
+      };
+    });
+  } catch (err) {
+    console.warn(`Could not load streaming links for anime ${animeId}:`, err);
+    return [];
+  }
+}
+
+// 2. Fetch Written Community Reviews
+export async function getAnimeReviews(animeId, limit = 6) {
+  try {
+    const data = await fetchKitsu(`/anime/${animeId}/reviews`, {
+      include: 'user',
+      sort: '-likesCount',
+      'page[limit]': Math.min(limit, 20),
+    });
+    const included = data.included || [];
+
+    return (data.data || []).map((review) => {
+      const userRel = review.relationships?.user?.data;
+      const userObj = userRel
+        ? included.find((inc) => inc.type === 'users' && String(inc.id) === String(userRel.id))
+        : null;
+
+      return {
+        id: review.id,
+        content: review.attributes?.content || '',
+        formattedContent: review.attributes?.contentFormatted || '',
+        rating: review.attributes?.rating || null,
+        likesCount: review.attributes?.likesCount || 0,
+        createdAt: review.attributes?.createdAt,
+        user: userObj
+          ? {
+              name: userObj.attributes?.name || 'Anime Fan',
+              avatar: userObj.attributes?.avatar?.medium || userObj.attributes?.avatar?.original || null,
+            }
+          : { name: 'Anonymous', avatar: null },
+      };
+    });
+  } catch (err) {
+    console.warn(`Could not load reviews for anime ${animeId}:`, err);
+    return [];
+  }
+}
+
+// 3. Fetch Related Franchise Entries (Prequels, Sequels, Spin-offs)
+export async function getAnimeRelations(animeId) {
+  try {
+    const data = await fetchKitsu(`/anime/${animeId}/media-relationships`, {
+      include: 'destination',
+    });
+    const included = data.included || [];
+
+    return (data.data || []).map((rel) => {
+      const destRel = rel.relationships?.destination?.data;
+      const destObj = destRel
+        ? included.find((inc) => inc.type === destRel.type && String(inc.id) === String(destRel.id))
+        : null;
+
+      if (!destObj) return null;
+
+      return {
+        id: rel.id,
+        role: rel.attributes?.role || 'Relation', // 'prequel', 'sequel', 'side_story', 'spin_off'
+        destination: normalizeAnime(destObj),
+      };
+    }).filter(Boolean);
+  } catch (err) {
+    console.warn(`Could not load franchise relations for anime ${animeId}:`, err);
     return [];
   }
 }

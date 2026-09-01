@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import AniFlowLogo from './AniFlowLogo';
-import { Heart, Disc as Discord, Sparkles } from 'lucide-react';
+import { Heart, Send as Discord, X, Sparkles, GitFork } from 'lucide-react';
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
@@ -20,11 +20,11 @@ export default function Footer() {
               Your modern, high-speed gateway to discover, track, and stream anime metadata powered by the Kitsu API.
             </p>
             <div className="flex items-center gap-3 pt-2 text-slate-400">
-              <a href="https://github.com" target="_blank" rel="noreferrer" className="hover:text-brand-primary transition-colors">
-                <Discord className="w-4 h-4" />
+              <a href="https://github.com/PrajwalSH1930/AniFlow" target="_blank" rel="noreferrer" className="hover:text-brand-primary transition-colors">
+                <GitFork className="w-4 h-4" />
               </a>
               <a href="https://twitter.com" target="_blank" rel="noreferrer" className="hover:text-brand-primary transition-colors">
-                <Discord className="w-4 h-4" />
+                <X className="w-4 h-4" />
               </a>
               <a href="https://discord.com" target="_blank" rel="noreferrer" className="hover:text-brand-primary transition-colors">
                 <Discord className="w-4 h-4" />
@@ -93,7 +93,7 @@ export default function Footer() {
         <div className="pt-8 border-t border-slate-900 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
           <p>© {currentYear} AniFlow. Built for the anime community.</p>
           <p className="flex items-center gap-1">
-            Made with <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500" /> using React & Tailwind CSS
+            Made with <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500" /> by Prince Inc.
           </p>
         </div>
       </div>
