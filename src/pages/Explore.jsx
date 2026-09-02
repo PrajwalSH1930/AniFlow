@@ -13,20 +13,6 @@ const SORT_OPTIONS = [
   { label: 'Oldest First', value: 'startDate' },
 ];
 
-const POPULAR_GENRES = [
-  { label: 'All', slug: '' },
-  { label: 'Action', slug: 'action' },
-  { label: 'Adventure', slug: 'adventure' },
-  { label: 'Comedy', slug: 'comedy' },
-  { label: 'Drama', slug: 'drama' },
-  { label: 'Fantasy', slug: 'fantasy' },
-  { label: 'Romance', slug: 'romance' },
-  { label: 'Sci-Fi', slug: 'sci-fi' },
-  { label: 'Mystery', slug: 'mystery' },
-  { label: 'Supernatural', slug: 'supernatural' },
-  { label: 'Psychological', slug: 'psychological' },
-];
-
 const ITEMS_PER_PAGE = 20;
 
 export default function Explore() {
@@ -43,6 +29,11 @@ export default function Explore() {
   const [selectedSort, setSelectedSort] = useState(initialSort);
   const [currentPage, setCurrentPage] = useState(initialPage);
 
+  // Dynamic Categories State inside Component
+  const [categories, setCategories] = useState([
+    { title: 'All', slug: '' },
+  ]);
+
   const [animeList, setAnimeList] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -50,6 +41,28 @@ export default function Explore() {
 
   // Debounce search input to avoid hitting rate limits
   const debouncedSearch = useDebounce(searchTerm, 400);
+
+  // Fetch top dynamic categories once on mount
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function loadCategories() {
+      try {
+        const data = await animeService.getAllCategories(30);
+        if (!isCancelled && data.length > 0) {
+          setCategories([{ title: 'All', slug: '' }, ...data]);
+        }
+      } catch (err) {
+        console.warn('Failed to load categories:', err);
+      }
+    }
+
+    loadCategories();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
 
   // Sync state changes back to URL search params
   const syncParamsToUrl = useCallback((query, category, sort, page) => {
@@ -104,19 +117,16 @@ export default function Explore() {
     };
   }, [debouncedSearch, selectedCategory, selectedSort, currentPage, syncParamsToUrl]);
 
-  // Handle Search Input Change
   const handleSearchChange = (e) => {
     setSearchTerm(e.target.value);
-    setCurrentPage(1); // Reset to page 1 on new search
+    setCurrentPage(1);
   };
 
-  // Handle Category Tag Change
   const handleCategorySelect = (slug) => {
     setSelectedCategory(slug);
     setCurrentPage(1);
   };
 
-  // Handle Sort Change
   const handleSortChange = (e) => {
     setSelectedSort(e.target.value);
     setCurrentPage(1);
@@ -161,21 +171,24 @@ export default function Explore() {
 
         </div>
 
-        {/* Genre Filter Pills */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-          {POPULAR_GENRES.map((genre) => {
-            const isActive = selectedCategory === genre.slug;
+        {/* Dynamic Category Filter Pills */}
+        <div
+          className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        >
+          {categories.map((cat) => {
+            const isActive = selectedCategory === cat.slug;
             return (
               <button
-                key={genre.label}
-                onClick={() => handleCategorySelect(genre.slug)}
+                key={cat.slug || 'all'}
+                onClick={() => handleCategorySelect(cat.slug)}
                 className={`shrink-0 whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
                   isActive
                     ? 'bg-brand-primary text-white shadow-md shadow-brand-primary/25'
                     : 'bg-slate-900/80 text-slate-300 border border-slate-800 hover:bg-slate-800 hover:text-white'
                 }`}
               >
-                {genre.label}
+                {cat.title} {cat.totalMediaCount ? `(${cat.totalMediaCount.toLocaleString()})` : ''}
               </button>
             );
           })}
@@ -207,19 +220,17 @@ export default function Explore() {
           <Sparkles className="w-10 h-10 text-slate-600 mx-auto" />
           <h3 className="text-lg font-semibold text-slate-300">No anime found</h3>
           <p className="text-sm text-slate-500 max-w-sm mx-auto">
-            Try adjusting your search query or selecting a different genre filter.
+            Try adjusting your search query or selecting a different category filter.
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 lg:-mx-10 gap-4 sm:gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6">
           {loading
             ? Array.from({ length: ITEMS_PER_PAGE }).map((_, idx) => (
                 <AnimeCardSkeleton key={idx} />
               ))
             : animeList.map((anime) => (
-                <div key={anime.id} className="flex justify-center">
-                  <AnimeCard anime={anime} />
-                </div>
+                <AnimeCard key={anime.id} anime={anime} />
               ))}
         </div>
       )}

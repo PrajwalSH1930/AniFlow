@@ -21,9 +21,13 @@ import {
   Trophy,
   Flame,
   ExternalLink,
-  MessageSquare,
   ThumbsUp,
-  Layers
+  Layers,
+  Quote,
+  Building2,
+  Share2,
+  BookOpen,
+  GitCommit
 } from 'lucide-react';
 
 const CHUNK_SIZE = 50;
@@ -36,9 +40,16 @@ export default function AnimeDetails() {
   const [streamingLinks, setStreamingLinks] = useState([]);
   const [reviews, setReviews] = useState([]);
   const [relations, setRelations] = useState([]);
+  const [productions, setProductions] = useState([]);
+  const [staff, setStaff] = useState([]);
+  const [mappings, setMappings] = useState([]);
+  const [quotes, setQuotes] = useState([]);
+  const [sourceManga, setSourceManga] = useState([]);
+  const [installments, setInstallments] = useState([]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'episodes' | 'characters' | 'reviews' | 'trailer'
+  const [activeTab, setActiveTab] = useState('overview');
   const [selectedRange, setSelectedRange] = useState(0);
   const [episodeSearch, setEpisodeSearch] = useState('');
 
@@ -66,29 +77,53 @@ export default function AnimeDetails() {
         setError(null);
         window.scrollTo({ top: 0, behavior: 'smooth' });
 
+        // Safe parallel fetching: even if optional endpoints fail, main anime details load cleanly
         const [
-          detailsData,
-          episodesData,
-          castingsData,
-          streamData,
-          reviewsData,
-          relationsData,
-        ] = await Promise.all([
+          detailsRes,
+          episodesRes,
+          castingsRes,
+          streamRes,
+          reviewsRes,
+          relationsRes,
+          productionsRes,
+          staffRes,
+          mappingsRes,
+          quotesRes,
+          sourceMangaRes,
+          installmentsRes,
+        ] = await Promise.allSettled([
           animeService.getAnimeDetails(id),
-          animeService.getAnimeEpisodes(id, 1000),
-          animeService.getAnimeCastings(id, 100),
+          animeService.getAnimeEpisodes(id, 300),
+          animeService.getAnimeCastings(id, 40),
           animeService.getAnimeStreamingLinks(id),
           animeService.getAnimeReviews(id, 6),
           animeService.getAnimeRelations(id),
+          animeService.getAnimeProductions(id),
+          animeService.getAnimeStaff(id),
+          animeService.getAnimeMappings(id),
+          animeService.getAnimeQuotes(id),
+          animeService.getAnimeSourceManga(id),
+          animeService.getFranchiseInstallments(id),
         ]);
 
         if (!isCancelled) {
-          setAnime(detailsData);
-          setEpisodes(episodesData);
-          setCastings(castingsData);
-          setStreamingLinks(streamData);
-          setReviews(reviewsData);
-          setRelations(relationsData);
+          if (detailsRes.status === 'fulfilled' && detailsRes.value) {
+            setAnime(detailsRes.value);
+          } else {
+            throw new Error('Failed to load anime details.');
+          }
+
+          setEpisodes(episodesRes.status === 'fulfilled' ? episodesRes.value : []);
+          setCastings(castingsRes.status === 'fulfilled' ? castingsRes.value : []);
+          setStreamingLinks(streamRes.status === 'fulfilled' ? streamRes.value : []);
+          setReviews(reviewsRes.status === 'fulfilled' ? reviewsRes.value : []);
+          setRelations(relationsRes.status === 'fulfilled' ? relationsRes.value : []);
+          setProductions(productionsRes.status === 'fulfilled' ? productionsRes.value : []);
+          setStaff(staffRes.status === 'fulfilled' ? staffRes.value : []);
+          setMappings(mappingsRes.status === 'fulfilled' ? mappingsRes.value : []);
+          setQuotes(quotesRes.status === 'fulfilled' ? quotesRes.value : []);
+          setSourceManga(sourceMangaRes.status === 'fulfilled' ? sourceMangaRes.value : []);
+          setInstallments(installmentsRes.status === 'fulfilled' ? installmentsRes.value : []);
           setSelectedRange(0);
         }
       } catch (err) {
@@ -132,6 +167,9 @@ export default function AnimeDetails() {
     ? Math.min(100, Math.round((watchedCount / episodes.length) * 100))
     : 0;
 
+  const studios = productions.filter((p) => p.role?.toLowerCase() === 'studio');
+  const producers = productions.filter((p) => p.role?.toLowerCase() !== 'studio');
+
   if (loading) return <AnimeDetailsSkeleton />;
 
   if (error || !anime) {
@@ -174,12 +212,14 @@ export default function AnimeDetails() {
       </div>
 
       {/* Main Content Area */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-32 sm:-mt-44 relative z-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-36 sm:-mt-44 relative z-10">
         <div className="flex flex-col md:flex-row gap-8 items-start">
           
-          {/* Left Column: Poster, Progress, Watchlist & Streaming Outlets */}
+          {/* Left Column (Full responsive width on mobile, fixed on desktop) */}
           <div className="w-full max-w-sm md:max-w-none md:w-64 flex-shrink-0 mx-auto md:mx-0 space-y-4">
-            <div className="rounded-2xl overflow-hidden shadow-2xl border border-slate-800/80 bg-slate-900">
+            
+            {/* Poster Card */}
+            <div className="w-48 sm:w-56 md:w-full mx-auto rounded-2xl overflow-hidden shadow-2xl border border-slate-800/80 bg-slate-900">
               <ImageWithFallback
                 src={anime.posterImage}
                 alt={anime.canonicalTitle}
@@ -221,7 +261,6 @@ export default function AnimeDetails() {
                 <button
                   onClick={() => removeFromWatchlist(anime.id)}
                   className="p-2.5 rounded-lg bg-rose-950/50 border border-rose-800/80 text-rose-300 hover:bg-rose-900 hover:text-white transition-colors text-xs"
-                  title="Remove from Watchlist"
                 >
                   Remove
                 </button>
@@ -235,7 +274,7 @@ export default function AnimeDetails() {
               )}
             </div>
 
-            {/* Official Streaming Links */}
+            {/* Where to Watch */}
             {streamingLinks.length > 0 && (
               <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2">
                 <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
@@ -258,7 +297,30 @@ export default function AnimeDetails() {
               </div>
             )}
 
-            {/* Sidebar Metrics Table */}
+            {/* External Database Mappings */}
+            {mappings.length > 0 && (
+              <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2">
+                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Share2 className="w-3 h-3 text-brand-primary" /> External Databases
+                </span>
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {mappings.map((m) => (
+                    <a
+                      key={m.id}
+                      href={m.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 text-[11px] font-medium text-slate-300 capitalize transition-colors"
+                    >
+                      {m.site.replace('/anime', '').replace('/series', '')}
+                      <ExternalLink className="w-2.5 h-2.5 text-slate-400" />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Metrics Sidebar */}
             <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800/80 space-y-3 text-xs text-slate-300">
               <div className="flex items-center justify-between">
                 <span className="text-slate-500">Rating</span>
@@ -289,10 +351,10 @@ export default function AnimeDetails() {
 
           </div>
 
-          {/* Right Column: Title, Rank Pills, Relations, Navigation Tabs */}
+          {/* Right Column (Constrained with min-w-0 to prevent horizontal flex spill) */}
           <div className="flex-1 min-w-0 space-y-6 w-full">
             
-            {/* Title & Rank Badges Header */}
+            {/* Title & Badges */}
             <div className="space-y-3 text-center md:text-left">
               <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
                 <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-brand-primary text-white uppercase">
@@ -319,7 +381,7 @@ export default function AnimeDetails() {
                 {anime.canonicalTitle}
               </h1>
 
-              {/* Japanese & Romaji Sub-titles */}
+              {/* Japanese & Romaji Titles */}
               <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 text-xs text-slate-400">
                 {anime.japaneseTitle && <span>{anime.japaneseTitle}</span>}
                 {anime.romajiTitle && anime.romajiTitle !== anime.canonicalTitle && (
@@ -329,9 +391,31 @@ export default function AnimeDetails() {
                   <span className="text-slate-500 font-mono">({anime.abbreviatedTitles.join(', ')})</span>
                 )}
               </div>
+
+              {/* Studios & Production Team Tags */}
+              {studios.length > 0 && (
+                <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 pt-1">
+                  <span className="text-xs text-slate-500 flex items-center gap-1">
+                    <Building2 className="w-3.5 h-3.5" /> Studio:
+                  </span>
+                  {studios.map((s) => (
+                    <span
+                      key={s.id}
+                      className="px-2.5 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200"
+                    >
+                      {s.name}
+                    </span>
+                  ))}
+                  {producers.length > 0 && (
+                    <span className="text-xs text-slate-500 pl-2">
+                      Produced by: {producers.map((p) => p.name).slice(0, 3).join(', ')}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
-            {/* Meta Tags Row */}
+            {/* Meta Row */}
             <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-xs sm:text-sm text-slate-300 border-y border-slate-800/80 py-3">
               <div className="flex items-center gap-1.5">
                 <Tv className="w-4 h-4 text-brand-primary" />
@@ -349,41 +433,65 @@ export default function AnimeDetails() {
               </div>
             </div>
 
-            {/* Franchise Relations Preview (Prequels, Sequels, Spin-offs) */}
             {/* Franchise Relations Preview */}
-{relations.length > 0 && (
-  <div className="space-y-2 pt-1 w-full max-w-full overflow-hidden">
-    <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-      <Layers className="w-3.5 h-3.5 text-brand-primary" /> Franchise & Related Entries
-    </h4>
-    <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-none w-full">
-      {relations.map((rel) => (
-        <Link
-          key={rel.id}
-          to={`/anime/${rel.destination.id}`}
-          className="flex-shrink-0 flex items-center gap-2.5 bg-slate-900/80 hover:bg-slate-800 p-2 rounded-xl border border-slate-800/80 hover:border-brand-primary/40 transition-all w-52 max-w-[220px]"
-        >
-          <img
-            src={rel.destination.posterImage}
-            alt={rel.destination.canonicalTitle}
-            className="w-10 h-14 object-cover rounded-lg flex-shrink-0"
-          />
-          <div className="min-w-0 flex-1 pr-1">
-            <span className="text-[10px] text-brand-primary font-bold uppercase tracking-wider block truncate">
-              {rel.role.replace('_', ' ')}
-            </span>
-            <h5 className="text-xs font-semibold text-slate-200 truncate" title={rel.destination.canonicalTitle}>
-              {rel.destination.canonicalTitle}
-            </h5>
-            <span className="text-[10px] text-slate-400 block truncate">
-              {rel.destination.subtype} • {rel.destination.startDate?.slice(0, 4) || 'TBA'}
-            </span>
-          </div>
-        </Link>
-      ))}
-    </div>
-  </div>
-)}
+            {relations.length > 0 && (
+              <div className="space-y-2 pt-1 w-full max-w-full overflow-hidden">
+                <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5 text-brand-primary" /> Franchise & Related Entries
+                </h4>
+                <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-none w-full">
+                  {relations.map((rel) => (
+                    <Link
+                      key={rel.id}
+                      to={`/anime/${rel.destination.id}`}
+                      className="flex-shrink-0 flex items-center gap-2.5 bg-slate-900/80 hover:bg-slate-800 p-2 rounded-xl border border-slate-800/80 hover:border-brand-primary/40 transition-all w-52 max-w-[220px]"
+                    >
+                      <img
+                        src={rel.destination.posterImage}
+                        alt={rel.destination.canonicalTitle}
+                        className="w-10 h-14 object-cover rounded-lg flex-shrink-0"
+                      />
+                      <div className="min-w-0 flex-1 pr-1">
+                        <span className="text-[10px] text-brand-primary font-bold uppercase tracking-wider block truncate">
+                          {rel.role.replace('_', ' ')}
+                        </span>
+                        <h5 className="text-xs font-semibold text-slate-200 truncate">
+                          {rel.destination.canonicalTitle}
+                        </h5>
+                        <span className="text-[10px] text-slate-400 block truncate">
+                          {rel.destination.subtype} • {rel.destination.startDate?.slice(0, 4) || 'TBA'}
+                        </span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Chronological Installments Order */}
+            {installments.length > 1 && (
+              <div className="space-y-2 pt-1 w-full overflow-hidden">
+                <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <GitCommit className="w-3.5 h-3.5 text-brand-primary" /> Release Order Timeline
+                </h4>
+                <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none w-full">
+                  {installments.map((step, idx) => (
+                    <React.Fragment key={step.id}>
+                      <div className="flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs">
+                        <span className="w-5 h-5 rounded-full bg-slate-800 text-brand-primary font-bold text-[10px] flex items-center justify-center">
+                          {idx + 1}
+                        </span>
+                        <span className="text-slate-200 font-medium truncate max-w-[140px]">{step.title}</span>
+                        <span className="text-[10px] text-slate-500">({step.year})</span>
+                      </div>
+                      {idx < installments.length - 1 && (
+                        <span className="text-slate-600 flex-shrink-0">→</span>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Navigation Tabs */}
             <div className="flex items-center gap-2 border-b border-slate-800 overflow-x-auto">
@@ -418,6 +526,16 @@ export default function AnimeDetails() {
                 Characters ({castings.length})
               </button>
               <button
+                onClick={() => setActiveTab('staff')}
+                className={`pb-3 px-3 text-sm font-semibold whitespace-nowrap transition-all border-b-2 ${
+                  activeTab === 'staff'
+                    ? 'border-brand-primary text-white'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Staff ({staff.length})
+              </button>
+              <button
                 onClick={() => setActiveTab('reviews')}
                 className={`pb-3 px-3 text-sm font-semibold whitespace-nowrap transition-all border-b-2 ${
                   activeTab === 'reviews'
@@ -441,7 +559,7 @@ export default function AnimeDetails() {
               )}
             </div>
 
-            {/* Tab 1: Overview */}
+            {/* Tab 1: Overview, Quotes & Manga Adaptation */}
             {activeTab === 'overview' && (
               <div className="space-y-6">
                 <div>
@@ -452,6 +570,64 @@ export default function AnimeDetails() {
                     {anime.synopsis}
                   </p>
                 </div>
+
+                {/* Original Source Material / Manga */}
+                {sourceManga.length > 0 && (
+                  <div className="pt-4 border-t border-slate-800/80 space-y-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                      <BookOpen className="w-3.5 h-3.5 text-brand-primary" /> Original Source Manga
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {sourceManga.map((manga) => (
+                        <div
+                          key={manga.id}
+                          className="flex items-center gap-3 p-3 rounded-xl bg-slate-900/60 border border-slate-800/80"
+                        >
+                          {manga.posterImage && (
+                            <img
+                              src={manga.posterImage}
+                              alt={manga.title}
+                              className="w-12 h-16 object-cover rounded-lg flex-shrink-0"
+                            />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">
+                              {manga.subtype} • {manga.status}
+                            </span>
+                            <h4 className="text-xs font-bold text-slate-200 truncate">{manga.title}</h4>
+                            <p className="text-[11px] text-slate-400">
+                              {manga.volumeCount} Volumes • {manga.chapterCount} Chapters
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Memorable Dialogue & Quotes */}
+                {quotes.length > 0 && (
+                  <div className="pt-4 border-t border-slate-800/80 space-y-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                      <Quote className="w-3.5 h-3.5 text-brand-primary" /> Memorable Dialogue & Quotes
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {quotes.map((q) => (
+                        <div
+                          key={q.id}
+                          className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800/80 relative space-y-2"
+                        >
+                          <p className="text-xs text-slate-300 italic leading-relaxed">
+                            "{q.content}"
+                          </p>
+                          <div className="text-[11px] font-semibold text-brand-primary text-right">
+                            — {q.characterName}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -474,7 +650,6 @@ export default function AnimeDetails() {
                     <button
                       onClick={() => markAllEpisodes(anime, episodes.map((e) => e.id), true)}
                       className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 transition-colors"
-                      title="Mark all as watched"
                     >
                       <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
                       Mark All
@@ -572,7 +747,7 @@ export default function AnimeDetails() {
               </div>
             )}
 
-            {/* Tab 3: Characters & Voice Actors */}
+            {/* Tab 3: Characters */}
             {activeTab === 'characters' && (
               <div className="space-y-4">
                 {castings.length === 0 ? (
@@ -587,12 +762,7 @@ export default function AnimeDetails() {
                         <div className="flex items-start gap-3 min-w-0 flex-1">
                           <div className="w-12 h-14 rounded-lg bg-slate-800 overflow-hidden flex-shrink-0 border border-slate-700/50">
                             {cast.image ? (
-                              <img
-                                src={cast.image}
-                                alt={cast.name}
-                                className="w-full h-full object-cover"
-                                loading="lazy"
-                              />
+                              <img src={cast.image} alt={cast.name} className="w-full h-full object-cover" loading="lazy" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-slate-600">
                                 <User className="w-5 h-5" />
@@ -600,9 +770,7 @@ export default function AnimeDetails() {
                             )}
                           </div>
                           <div className="min-w-0 pr-2">
-                            <h4 className="text-xs font-semibold text-slate-100 line-clamp-1" title={cast.name}>
-                              {cast.name}
-                            </h4>
+                            <h4 className="text-xs font-semibold text-slate-100 line-clamp-1">{cast.name}</h4>
                             <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-brand-primary/10 text-brand-primary border border-brand-primary/20 uppercase tracking-wider">
                               {cast.role.toLowerCase()}
                             </span>
@@ -614,22 +782,14 @@ export default function AnimeDetails() {
                             cast.voiceActors.map((va) => (
                               <div key={va.id} className="flex items-center gap-2 justify-end text-right">
                                 <div className="min-w-0">
-                                  <h5 className="text-[11px] font-medium text-slate-200 truncate" title={va.name}>
-                                    {va.name}
-                                  </h5>
+                                  <h5 className="text-[11px] font-medium text-slate-200 truncate">{va.name}</h5>
                                   <span className="text-[9px] text-slate-400 flex items-center justify-end gap-0.5">
-                                    <Mic className="w-2.5 h-2.5" />
-                                    {va.language}
+                                    <Mic className="w-2.5 h-2.5" /> {va.language}
                                   </span>
                                 </div>
                                 <div className="w-8 h-9 rounded-md bg-slate-800 overflow-hidden flex-shrink-0 border border-slate-700/50">
                                   {va.image ? (
-                                    <img
-                                      src={va.image}
-                                      alt={va.name}
-                                      className="w-full h-full object-cover"
-                                      loading="lazy"
-                                    />
+                                    <img src={va.image} alt={va.name} className="w-full h-full object-cover" loading="lazy" />
                                   ) : (
                                     <div className="w-full h-full flex items-center justify-center text-slate-600">
                                       <User className="w-3.5 h-3.5" />
@@ -639,9 +799,7 @@ export default function AnimeDetails() {
                               </div>
                             ))
                           ) : (
-                            <div className="text-[11px] text-slate-500 italic py-1">
-                              No VA credited
-                            </div>
+                            <div className="text-[11px] text-slate-500 italic py-1">No VA credited</div>
                           )}
                         </div>
                       </div>
@@ -651,7 +809,39 @@ export default function AnimeDetails() {
               </div>
             )}
 
-            {/* Tab 4: Written Community Reviews */}
+            {/* Tab 4: Staff & Creators */}
+            {activeTab === 'staff' && (
+              <div className="space-y-4">
+                {staff.length === 0 ? (
+                  <p className="text-sm text-slate-500 py-6">No production staff listings found for this title.</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    {staff.map((s) => (
+                      <div
+                        key={s.id}
+                        className="flex items-center gap-3 p-3 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 transition-colors"
+                      >
+                        <div className="w-11 h-11 rounded-full bg-slate-800 overflow-hidden flex-shrink-0 border border-slate-700">
+                          {s.person?.image ? (
+                            <img src={s.person.image} alt={s.person.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-slate-600">
+                              <User className="w-5 h-5" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h4 className="text-xs font-bold text-slate-200 truncate">{s.person?.name}</h4>
+                          <span className="text-[10px] text-brand-primary font-medium truncate block">{s.role}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Tab 5: Community Reviews */}
             {activeTab === 'reviews' && (
               <div className="space-y-4">
                 {reviews.length === 0 ? (
@@ -659,10 +849,7 @@ export default function AnimeDetails() {
                 ) : (
                   <div className="space-y-4">
                     {reviews.map((rev) => (
-                      <div
-                        key={rev.id}
-                        className="bg-slate-900/70 border border-slate-800/80 rounded-xl p-4 space-y-3"
-                      >
+                      <div key={rev.id} className="bg-slate-900/70 border border-slate-800/80 rounded-xl p-4 space-y-3">
                         <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                           <div className="flex items-center gap-3">
                             <div className="w-9 h-9 rounded-full bg-slate-800 overflow-hidden border border-slate-700">
@@ -704,7 +891,7 @@ export default function AnimeDetails() {
               </div>
             )}
 
-            {/* Tab 5: Trailer */}
+            {/* Tab 6: Trailer */}
             {activeTab === 'trailer' && anime.youtubeVideoId && (
               <div className="aspect-video w-full rounded-2xl overflow-hidden border border-slate-800 bg-black">
                 <iframe

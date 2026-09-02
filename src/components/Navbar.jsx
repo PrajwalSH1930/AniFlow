@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Flame, Compass, Bookmark, Tv, Calendar } from 'lucide-react';
+import { Search, Flame, Compass, Bookmark, Tv, Calendar, User } from 'lucide-react';
 import AniFlowLogo from './AniFlowLogo';
 
 export default function Navbar() {
@@ -54,7 +54,12 @@ export default function Navbar() {
         <Link to="/seasonal" className="flex items-center gap-1.5 hover:text-brand-primary transition-colors">
           <Calendar className="w-4 h-4" />
           <span className="hidden md:inline">Seasonal</span>
-        </Link>
+          </Link>
+          <Link to="/characters" className="flex items-center gap-1.5 hover:text-brand-primary transition-colors">
+          <User className="w-4 h-4" />
+            
+            Characters
+          </Link>
         </div>
       </div>
     </nav>

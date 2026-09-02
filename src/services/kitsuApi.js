@@ -125,6 +125,15 @@ export const animeService = {
   getAnimeStreamingLinks: getAnimeStreamingLinks,
   getAnimeReviews: getAnimeReviews,
   getAnimeRelations: getAnimeRelations,
+  getAnimeProductions: getAnimeProductions,
+  getAnimeStaff: getAnimeStaff,
+  getAnimeMappings: getAnimeMappings,
+  getAnimeQuotes: getAnimeQuotes,
+  getAllCategories: getAllCategories,
+  getAnimeSourceManga: getAnimeSourceManga,
+  getFranchiseInstallments: getFranchiseInstallments,
+  searchCharacters: searchCharacters,
+  getPersonDetails: getPersonDetails,
 
   // Categories / Genres
   getCategories: async (limit = 40) => {
@@ -255,6 +264,126 @@ export async function getAnimeCastings(animeId, maxLimit = 100) {
   }
 }
 
+// 1. Fetch Source Adaptation / Linked Manga
+export async function getAnimeSourceManga(animeId) {
+  try {
+    const data = await fetchKitsu(`/anime/${animeId}/media-relationships`, {
+      include: 'destination',
+      'filter[role]': 'adaptation',
+    });
+    const included = data.included || [];
+
+    return (data.data || []).map((rel) => {
+      const dest = rel.relationships?.destination?.data;
+      const target = dest ? included.find((item) => item.type === 'manga' && String(item.id) === String(dest.id)) : null;
+      if (!target) return null;
+
+      const attrs = target.attributes || {};
+      return {
+        id: target.id,
+        title: attrs.canonicalTitle || attrs.titles?.en || 'Manga Adaptation',
+        posterImage: attrs.posterImage?.medium || attrs.posterImage?.original || null,
+        subtype: attrs.subtype || 'manga',
+        chapterCount: attrs.chapterCount || '?',
+        volumeCount: attrs.volumeCount || '?',
+        status: attrs.status || 'Unknown',
+        averageRating: attrs.averageRating ? parseFloat(attrs.averageRating).toFixed(1) : 'N/A',
+      };
+    }).filter(Boolean);
+  } catch (err) {
+    console.warn(`Could not load source adaptation for anime ${animeId}:`, err);
+    return [];
+  }
+}
+
+// 2. Fetch Full Franchise Installments Order
+export async function getFranchiseInstallments(animeId) {
+  try {
+    const data = await fetchKitsu(`/anime/${animeId}/installments`, {
+      include: 'media',
+      sort: 'position',
+    });
+    const included = data.included || [];
+
+    return (data.data || []).map((inst) => {
+      const mediaRel = inst.relationships?.media?.data;
+      const mediaItem = mediaRel ? included.find((item) => String(item.id) === String(mediaRel.id)) : null;
+      if (!mediaItem) return null;
+
+      const attrs = mediaItem.attributes || {};
+      return {
+        id: mediaItem.id,
+        type: mediaRel.type,
+        position: inst.attributes?.position ?? 0,
+        tag: inst.attributes?.tag || 'Main Story',
+        title: attrs.canonicalTitle || 'Unknown Title',
+        subtype: attrs.subtype || 'TV',
+        year: attrs.startDate ? attrs.startDate.slice(0, 4) : 'TBA',
+        posterImage: attrs.posterImage?.small || attrs.posterImage?.medium || null,
+      };
+    }).filter(Boolean);
+  } catch (err) {
+    console.warn(`Could not load installments for anime ${animeId}:`, err);
+    return [];
+  }
+}
+
+// 3. Global Character Directory & Search
+export async function searchCharacters(query = '', limit = 20, offset = 0) {
+  const params = {
+    'page[limit]': Math.min(limit, 20),
+    'page[offset]': offset,
+  };
+  if (query.trim()) {
+    params['filter[name]'] = query.trim();
+  }
+
+  try {
+    const data = await fetchKitsu('/characters', params);
+    return {
+      results: (data.data || []).map((c) => {
+        const attrs = c.attributes || {};
+        return {
+          id: c.id,
+          name: attrs.canonicalName || attrs.name || 'Unknown Character',
+          otherNames: attrs.otherNames || [],
+          image: attrs.image?.original || attrs.image?.medium || null,
+          description: attrs.description || 'No biography available.',
+        };
+      }),
+      total: data.meta?.count || 0,
+    };
+  } catch (err) {
+    console.error('Error searching characters:', err);
+    return { results: [], total: 0 };
+  }
+}
+
+// 4. Person / Voice Actor Filmography Profile
+export async function getPersonDetails(personId) {
+  try {
+    const data = await fetchKitsu(`/people/${personId}`, {
+      include: 'castings.media',
+    });
+    const attrs = data.data?.attributes || {};
+    const included = data.included || [];
+
+    const filmography = included
+      .filter((item) => item.type === 'anime' || item.type === 'manga')
+      .map((m) => normalizeAnime(m));
+
+    return {
+      id: data.data?.id,
+      name: attrs.name || 'Unknown Person',
+      image: attrs.image?.original || attrs.image?.medium || null,
+      birthday: attrs.birthday || null,
+      filmography,
+    };
+  } catch (err) {
+    console.error(`Error loading person ${personId}:`, err);
+    return null;
+  }
+}
 // Seasonal query helper
 export async function getSeasonalAnime({ year = new Date().getFullYear(), season = 'fall', limit = 20, offset = 0 }) {
   // Season date ranges for ISO boundary queries
@@ -388,6 +517,139 @@ export async function getAnimeRelations(animeId) {
     }).filter(Boolean);
   } catch (err) {
     console.warn(`Could not load franchise relations for anime ${animeId}:`, err);
+    return [];
+  }
+}
+
+// 1. Fetch Animation Studios & Production Companies
+export async function getAnimeProductions(animeId) {
+  try {
+    const data = await fetchKitsu(`/anime/${animeId}/anime-productions`, {
+      include: 'producer',
+      'page[limit]': 20,
+    });
+    const included = data.included || [];
+
+    return (data.data || []).map((item) => {
+      const producerRel = item.relationships?.producer?.data;
+      const producer = producerRel
+        ? included.find((inc) => inc.type === 'producers' && String(inc.id) === String(producerRel.id))
+        : null;
+
+      return {
+        id: item.id,
+        role: item.attributes?.role || 'Producer', // 'studio', 'producer', 'licensor'
+        producerId: producer?.id,
+        name: producer?.attributes?.name || 'Unknown Studio',
+      };
+    });
+  } catch (err) {
+    console.warn(`Could not load productions for anime ${animeId}:`, err);
+    return [];
+  }
+}
+
+// 2. Fetch Staff & Creators (Directors, Music, Character Designers)
+export async function getAnimeStaff(animeId) {
+  try {
+    const data = await fetchKitsu(`/anime/${animeId}/anime-staff`, {
+      include: 'person',
+      'page[limit]': 20,
+    });
+    const included = data.included || [];
+
+    return (data.data || []).map((item) => {
+      const personRel = item.relationships?.person?.data;
+      const person = personRel
+        ? included.find((inc) => inc.type === 'people' && String(inc.id) === String(personRel.id))
+        : null;
+
+      return {
+        id: item.id,
+        role: item.attributes?.role || 'Staff Member',
+        person: person
+          ? {
+              id: person.id,
+              name: person.attributes?.name || 'Unknown Staff',
+              image: person.attributes?.image?.original || person.attributes?.image?.medium || null,
+            }
+          : null,
+      };
+    }).filter((s) => s.person !== null);
+  } catch (err) {
+    console.warn(`Could not load staff for anime ${animeId}:`, err);
+    return [];
+  }
+}
+
+// 3. Fetch External Database IDs (MyAnimeList, AniList, Anime-Planet)
+export async function getAnimeMappings(animeId) {
+  try {
+    const data = await fetchKitsu(`/anime/${animeId}/mappings`, {
+      'page[limit]': 20,
+    });
+
+    const externalUrls = {
+      'myanimelist/anime': (id) => `https://myanimelist.net/anime/${id}`,
+      'anilist/anime': (id) => `https://anilist.co/anime/${id}`,
+      'thetvdb/series': (id) => `https://thetvdb.com/dereferrer/series/${id}`,
+      'anime-planet': (id) => `https://www.anime-planet.com/anime/${id}`,
+    };
+
+    return (data.data || []).map((m) => {
+      const site = m.attributes?.externalSite || '';
+      const extId = m.attributes?.externalId || '';
+      const urlBuilder = externalUrls[site];
+
+      return {
+        id: m.id,
+        site,
+        externalId: extId,
+        url: urlBuilder ? urlBuilder(extId) : null,
+      };
+    }).filter((m) => m.url !== null);
+  } catch (err) {
+    console.warn(`Could not load mappings for anime ${animeId}:`, err);
+    return [];
+  }
+}
+
+// 4. Fetch Memorable Character Quotes
+export async function getAnimeQuotes(animeId) {
+  try {
+    const data = await fetchKitsu(`/anime/${animeId}/quotes`, {
+      'page[limit]': 10,
+    });
+
+    return (data.data || []).map((q) => ({
+      id: q.id,
+      content: q.attributes?.content || '',
+      characterName: q.attributes?.characterName || 'Unknown Character',
+      linesCount: q.attributes?.linesCount || 0,
+    })).filter((q) => q.content.trim().length > 0);
+  } catch (err) {
+    console.warn(`Could not load quotes for anime ${animeId}:`, err);
+    return [];
+  }
+}
+
+// 5. Fetch Full Dynamic Category Hierarchy
+export async function getAllCategories(limit = 40) {
+  try {
+    const data = await fetchKitsu('/categories', {
+      sort: '-totalMediaCount',
+      'page[limit]': Math.min(limit, 40),
+    });
+
+    return (data.data || []).map((c) => ({
+      id: c.id,
+      title: c.attributes?.title || 'Category',
+      slug: c.attributes?.slug || '',
+      description: c.attributes?.description || '',
+      totalMediaCount: c.attributes?.totalMediaCount || 0,
+    }));
+  } catch (err) {
+    console.warn('Could not load categories:', err);
     return [];
   }
 }
