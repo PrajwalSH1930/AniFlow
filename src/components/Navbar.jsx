@@ -58,7 +58,7 @@ export default function Navbar() {
           <Link to="/characters" className="flex items-center gap-1.5 hover:text-brand-primary transition-colors">
           <User className="w-4 h-4" />
             
-            Characters
+            <span className="hidden md:inline">Characters</span>
           </Link>
         </div>
       </div>
