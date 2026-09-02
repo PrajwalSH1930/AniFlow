@@ -1,113 +1,110 @@
+// Inside src/pages/Watchlist.jsx
+
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useWatchlist, WATCHLIST_STATUSES } from '../context/WatchlistContext';
 import AnimeCard from '../components/AnimeCard';
-import { Bookmark, Trash2, Compass, Film } from 'lucide-react';
-
-const FILTER_TABS = [
-  'All',
-  WATCHLIST_STATUSES.PLAN_TO_WATCH,
-  WATCHLIST_STATUSES.WATCHING,
-  WATCHLIST_STATUSES.COMPLETED,
-  WATCHLIST_STATUSES.DROPPED,
-];
+import WatchlistStats from '../components/WatchlistStats';
+import { LayoutGrid, BarChart2, BookmarkCheck } from 'lucide-react';
 
 export default function Watchlist() {
-  const { watchlist, clearWatchlist } = useWatchlist();
-  const [activeFilter, setActiveFilter] = useState('All');
+  const { watchlist } = useWatchlist();
+  const [activeView, setActiveView] = useState('grid'); // 'grid' | 'stats'
+  const [selectedStatus, setSelectedStatus] = useState('ALL');
 
-  const filteredList = activeFilter === 'All'
+  const filteredWatchlist = selectedStatus === 'ALL'
     ? watchlist
-    : watchlist.filter((item) => item.watchStatus === activeFilter);
+    : watchlist.filter((item) => item.watchStatus === selectedStatus);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 min-h-[75vh]">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 min-h-screen">
       
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-6">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-brand-primary/10 border border-brand-primary/20 text-brand-primary">
-            <Bookmark className="w-6 h-6 fill-brand-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-white tracking-tight">My Watchlist</h1>
-            <p className="text-xs text-slate-400 mt-0.5">
-              {watchlist.length} {watchlist.length === 1 ? 'anime' : 'animes'} saved locally
-            </p>
-          </div>
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
+        <div className="flex items-center gap-2.5">
+          <BookmarkCheck className="w-7 h-7 text-brand-primary" />
+          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+            My Watchlist
+          </h1>
+          <span className="text-xs font-bold bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full">
+            {watchlist.length}
+          </span>
         </div>
 
-        {watchlist.length > 0 && (
+        {/* View Switcher: Grid vs Stats */}
+        <div className="flex items-center bg-slate-900 border border-slate-800 p-1 rounded-xl self-start sm:self-auto">
           <button
-            onClick={() => {
-              if (window.confirm('Are you sure you want to clear your entire watchlist?')) {
-                clearWatchlist();
-              }
-            }}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 border border-slate-800 hover:border-rose-800/80 hover:bg-rose-950/40 text-slate-400 hover:text-rose-300 text-xs rounded-lg transition-colors"
+            onClick={() => setActiveView('grid')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+              activeView === 'grid'
+                ? 'bg-brand-primary text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
           >
-            <Trash2 className="w-3.5 h-3.5" /> Clear All
+            <LayoutGrid className="w-3.5 h-3.5" />
+            Anime List
           </button>
-        )}
+          <button
+            onClick={() => setActiveView('stats')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+              activeView === 'stats'
+                ? 'bg-brand-primary text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <BarChart2 className="w-3.5 h-3.5" />
+            User Stats
+          </button>
+        </div>
       </div>
 
-      {/* Status Filter Tabs */}
-      {watchlist.length > 0 && (
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-          {FILTER_TABS.map((tab) => {
-            const count = tab === 'All'
-              ? watchlist.length
-              : watchlist.filter((i) => i.watchStatus === tab).length;
-
-            return (
-              <button
-                key={tab}
-                onClick={() => setActiveFilter(tab)}
-                className={`whitespace-nowrap px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  activeFilter === tab
-                    ? 'bg-brand-primary text-white shadow-md shadow-brand-primary/25'
-                    : 'bg-slate-900/80 text-slate-400 hover:text-white border border-slate-800'
-                }`}
-              >
-                {tab} <span className="ml-1 opacity-70">({count})</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Grid or Empty State */}
-      {filteredList.length === 0 ? (
-        <div className="py-24 text-center space-y-4">
-          <Film className="w-12 h-12 text-slate-700 mx-auto" />
-          <h3 className="text-lg font-semibold text-slate-300">
-            {watchlist.length === 0 ? 'Your watchlist is empty' : `No anime marked as "${activeFilter}"`}
-          </h3>
-          <p className="text-sm text-slate-500 max-w-sm mx-auto">
-            Explore our catalogue and click the bookmark icon on any anime card to save titles for later.
-          </p>
-          <div className="pt-2">
-            <Link
-              to="/explore"
-              className="inline-flex items-center gap-2 bg-brand-primary hover:bg-brand-primary/90 text-white text-xs font-medium px-4 py-2.5 rounded-lg shadow-lg shadow-brand-primary/20 transition-all"
-            >
-              <Compass className="w-4 h-4" /> Browse Anime
-            </Link>
-          </div>
-        </div>
+      {/* Content View Routing */}
+      {activeView === 'stats' ? (
+        <WatchlistStats />
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6">
-          {filteredList.map((anime) => (
-            <div key={anime.id} className="flex flex-col items-center">
-              <AnimeCard anime={anime} />
-              <div className="mt-2 w-full text-center">
-                <span className="inline-block text-[11px] font-medium text-slate-400 bg-slate-900 px-2.5 py-0.5 rounded-md border border-slate-800">
-                  {anime.watchStatus}
-                </span>
-              </div>
+        <>
+          {/* Status Filter Tabs */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+            <button
+              onClick={() => setSelectedStatus('ALL')}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-medium shrink-0 transition-all ${
+                selectedStatus === 'ALL'
+                  ? 'bg-brand-primary text-white shadow-md shadow-brand-primary/25'
+                  : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white'
+              }`}
+            >
+              All ({watchlist.length})
+            </button>
+            {Object.values(WATCHLIST_STATUSES).map((status) => {
+              const count = watchlist.filter((i) => i.watchStatus === status).length;
+              return (
+                <button
+                  key={status}
+                  onClick={() => setSelectedStatus(status)}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-medium shrink-0 transition-all ${
+                    selectedStatus === status
+                      ? 'bg-brand-primary text-white shadow-md shadow-brand-primary/25'
+                      : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white'
+                  }`}
+                >
+                  {status} ({count})
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Watchlist Anime Grid */}
+          {filteredWatchlist.length === 0 ? (
+            <div className="py-24 text-center space-y-2">
+              <p className="text-slate-400 text-sm">No anime entries in this status filter.</p>
             </div>
-          ))}
-        </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6">
+              {filteredWatchlist.map((anime) => (
+                <AnimeCard key={anime.id} anime={anime} />
+              ))}
+            </div>
+          )}
+        </>
       )}
 
     </div>

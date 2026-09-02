@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { useToast } from './ToastContext';
 
 const WatchlistContext = createContext(null);
@@ -13,10 +13,69 @@ export const WATCHLIST_STATUSES = {
   DROPPED: 'Dropped',
 };
 
+// Pure helper function defined outside the component
+function calculateWatchlistStats(watchlist, watchedEpisodes) {
+  const totalEntries = watchlist.length;
+
+  const statusCounts = {
+    [WATCHLIST_STATUSES.WATCHING]: 0,
+    [WATCHLIST_STATUSES.COMPLETED]: 0,
+    [WATCHLIST_STATUSES.PLAN_TO_WATCH]: 0,
+    [WATCHLIST_STATUSES.DROPPED]: 0,
+  };
+
+  const formatCounts = {};
+
+  let totalScoreSum = 0;
+  let scoredCount = 0;
+  let totalWatchedEpisodesCount = 0;
+  let totalEstimatedMinutes = 0;
+
+  watchlist.forEach((anime) => {
+    if (statusCounts[anime.watchStatus] !== undefined) {
+      statusCounts[anime.watchStatus]++;
+    }
+
+    const format = anime.subtype || 'TV';
+    formatCounts[format] = (formatCounts[format] || 0) + 1;
+
+    if (anime.averageRating && anime.averageRating !== 'N/A') {
+      const parsedRating = parseFloat(anime.averageRating);
+      if (!isNaN(parsedRating)) {
+        totalScoreSum += parsedRating;
+        scoredCount++;
+      }
+    }
+
+    const watchedList = watchedEpisodes[String(anime.id)] || [];
+    const watchedEpCount = watchedList.length;
+    totalWatchedEpisodesCount += watchedEpCount;
+
+    const epDuration = anime.episodeLength ? parseInt(anime.episodeLength, 10) : 24;
+    totalEstimatedMinutes += watchedEpCount * epDuration;
+  });
+
+  const totalDays = (totalEstimatedMinutes / (24 * 60)).toFixed(1);
+  const totalHours = Math.floor(totalEstimatedMinutes / 60);
+  const remainingMinutes = totalEstimatedMinutes % 60;
+  const meanScore = scoredCount > 0 ? (totalScoreSum / scoredCount).toFixed(1) : 'N/A';
+
+  return {
+    totalEntries,
+    statusCounts,
+    formatCounts,
+    totalWatchedEpisodesCount,
+    totalEstimatedMinutes,
+    totalDays,
+    totalHours,
+    remainingMinutes,
+    meanScore,
+  };
+}
+
 export function WatchlistProvider({ children }) {
   const { addToast } = useToast();
 
-  // Watchlist entries state
   const [watchlist, setWatchlist] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -27,7 +86,6 @@ export function WatchlistProvider({ children }) {
     }
   });
 
-  // Watched episodes dictionary: { [animeId]: [episodeId1, episodeId2, ...] }
   const [watchedEpisodes, setWatchedEpisodes] = useState(() => {
     try {
       const saved = localStorage.getItem(EPISODES_STORAGE_KEY);
@@ -37,6 +95,12 @@ export function WatchlistProvider({ children }) {
       return {};
     }
   });
+
+  // Calculate stats after state variables are defined
+  const stats = useMemo(
+    () => calculateWatchlistStats(watchlist, watchedEpisodes),
+    [watchlist, watchedEpisodes]
+  );
 
   useEffect(() => {
     try {
@@ -74,6 +138,7 @@ export function WatchlistProvider({ children }) {
       averageRating: anime.averageRating,
       subtype: anime.subtype,
       episodeCount: anime.episodeCount,
+      episodeLength: anime.episodeLength,
       status: anime.status,
       watchStatus: status,
       addedAt: new Date().toISOString(),
@@ -115,7 +180,6 @@ export function WatchlistProvider({ children }) {
     addToast('Watchlist cleared', 'warning');
   };
 
-  // Episode tracking helpers
   const isEpisodeWatched = (animeId, episodeId) => {
     const list = watchedEpisodes[String(animeId)] || [];
     return list.includes(String(episodeId));
@@ -138,7 +202,6 @@ export function WatchlistProvider({ children }) {
       };
     });
 
-    // Automatically add anime to "Watching" if not in list
     if (!isInWatchlist(anime.id)) {
       addToWatchlist(anime, WATCHLIST_STATUSES.WATCHING);
     }
@@ -175,6 +238,7 @@ export function WatchlistProvider({ children }) {
         toggleEpisodeWatched,
         markAllEpisodes,
         getWatchedCount,
+        stats,
       }}
     >
       {children}
