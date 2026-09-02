@@ -12,6 +12,7 @@ import { ToastProvider } from './context/ToastContext';
 import { WatchlistProvider } from './context/WatchlistContext';
 import Seasonal from './pages/Seasonal';
 import Characters from './pages/Characters';
+import CharacterDetails from './pages/CharacterDetails';
 
 export default function App() {
   return (
@@ -29,6 +30,7 @@ export default function App() {
                   <Route path="/watchlist" element={<Watchlist />} />
                   <Route path="/seasonal" element={<Seasonal />} />
                   <Route path="/characters" element={<Characters />} />
+                  <Route path="/characters/:id" element={<CharacterDetails />} />
                 </Routes>
               </main>
               <Footer />

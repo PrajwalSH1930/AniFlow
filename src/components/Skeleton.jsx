@@ -31,7 +31,27 @@ export function AnimeCardSkeleton() {
     </div>
   );
 }
+// In src/components/Skeleton.jsx
 
+export function CharacterCardSkeleton() {
+  return (
+    <div className="flex flex-col bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 animate-pulse space-y-3">
+      <div className="flex items-start gap-3.5">
+        <div className="w-16 h-20 sm:w-18 sm:h-24 rounded-xl bg-slate-800 shrink-0" />
+        <div className="flex-1 space-y-2 py-1">
+          <div className="h-4 bg-slate-800 rounded-md w-3/4" />
+          <div className="h-3 bg-slate-800/80 rounded-md w-1/2" />
+          <div className="h-4 bg-slate-800/50 rounded-md w-1/3 mt-2" />
+        </div>
+      </div>
+      <div className="pt-3 border-t border-slate-800/60 space-y-1.5">
+        <div className="h-2.5 bg-slate-800/70 rounded w-full" />
+        <div className="h-2.5 bg-slate-800/70 rounded w-5/6" />
+        <div className="h-2.5 bg-slate-800/50 rounded w-2/3" />
+      </div>
+    </div>
+  );
+}
 // 2. Hero Spotlight Skeleton (Matches HeroSpotlight.jsx)
 export function HeroSpotlightSkeleton() {
   return (

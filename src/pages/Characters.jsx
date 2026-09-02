@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { animeService } from '../services/kitsuApi';
 import { useDebounce } from '../hooks/useDebounce';
 import { Search, User, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
+import CharacterCard from '../components/CharacterCard';
+import { CharacterCardSkeleton } from '../components/Skeleton';
 
 const PAGE_SIZE = 20;
 
@@ -11,7 +13,7 @@ export default function Characters() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
-
+    
   const debouncedQuery = useDebounce(query, 400);
 
   useEffect(() => {
@@ -67,29 +69,14 @@ export default function Characters() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {characters.map((char) => (
-            <div
-              key={char.id}
-              className="flex gap-3.5 p-3.5 rounded-xl bg-slate-900/60 border border-slate-800/80 hover:border-slate-700 transition-colors"
-            >
-              <div className="w-16 h-20 rounded-lg bg-slate-800 overflow-hidden flex-shrink-0">
-                {char.image ? (
-                  <img src={char.image} alt={char.name} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-slate-600">
-                    <User className="w-6 h-6" />
-                  </div>
-                )}
-              </div>
-              <div className="min-w-0 flex-1 space-y-1">
-                <h3 className="text-sm font-bold text-slate-100 truncate">{char.name}</h3>
-                <p className="text-[11px] text-slate-400 line-clamp-3 leading-relaxed">
-                  {char.description.replace(/<[^>]*>?/gm, '')}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
+  {loading
+    ? Array.from({ length: 8 }).map((_, idx) => (
+        <CharacterCardSkeleton key={idx} />
+      ))
+    : characters.map((char) => (
+        <CharacterCard key={char.id} character={char} />
+      ))}
+</div>
       )}
 
       {totalPages > 1 && (

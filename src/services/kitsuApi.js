@@ -134,6 +134,9 @@ export const animeService = {
   getFranchiseInstallments: getFranchiseInstallments,
   searchCharacters: searchCharacters,
   getPersonDetails: getPersonDetails,
+  getCharacterDetails: getCharacterDetails,
+  getCharacterMediaAndCastings: getCharacterMediaAndCastings,
+  getCharacterQuotes: getCharacterQuotes,
 
   // Categories / Genres
   getCategories: async (limit = 40) => {
@@ -148,6 +151,112 @@ export const animeService = {
     }));
   },
 };
+
+// 1. Fetch Character Record & Normalize
+export async function getCharacterDetails(characterId) {
+  try {
+    const data = await fetchKitsu(`/characters/${characterId}`);
+    const item = data.data;
+    if (!item) return null;
+
+    const attrs = item.attributes || {};
+    return {
+      id: item.id,
+      name: attrs.canonicalName || attrs.names?.en || attrs.name || 'Unknown Character',
+      japaneseName: attrs.names?.ja_jp || '',
+      otherNames: attrs.otherNames || [],
+      slug: attrs.slug || '',
+      malId: attrs.malId || null,
+      description: attrs.description || 'No biography available for this character.',
+      image: attrs.image?.original || attrs.image?.large || attrs.image?.medium || null,
+      createdAt: attrs.createdAt,
+    };
+  } catch (err) {
+    console.error(`Error fetching character ${characterId}:`, err);
+    return null;
+  }
+}
+
+// 2. Fetch Character's Anime Appearances & Voice Actors
+export async function getCharacterMediaAndCastings(characterId) {
+  try {
+    const data = await fetchKitsu(`/castings`, {
+      'filter[character_id]': characterId,
+      include: 'media,person',
+      'page[limit]': 20,
+    });
+    const included = data.included || [];
+
+    const findIncluded = (type, id) => {
+      if (!id) return null;
+      return included.find((item) => item.type === type && String(item.id) === String(id));
+    };
+
+    const appearances = [];
+    const seenMedia = new Set();
+
+    (data.data || []).forEach((cast) => {
+      const mediaRel = cast.relationships?.media?.data;
+      const personRel = cast.relationships?.person?.data;
+
+      const mediaItem = mediaRel ? findIncluded(mediaRel.type, mediaRel.id) : null;
+      const personItem = personRel ? findIncluded(personRel.type, personRel.id) : null;
+
+      if (!mediaItem) return;
+
+      const mediaId = String(mediaItem.id);
+      const mediaAttrs = mediaItem.attributes || {};
+
+      const vaEntry = personItem ? {
+        id: personItem.id,
+        name: personItem.attributes?.name || 'Voice Actor',
+        image: personItem.attributes?.image?.original || personItem.attributes?.image?.medium || null,
+        language: cast.attributes?.voiceActor ? 'Japanese' : (cast.attributes?.language || 'Voice Actor'),
+      } : null;
+
+      if (!seenMedia.has(mediaId)) {
+        seenMedia.add(mediaId);
+        appearances.push({
+          mediaId,
+          title: mediaAttrs.canonicalTitle || mediaAttrs.titles?.en || 'Unknown Anime',
+          posterImage: mediaAttrs.posterImage?.medium || mediaAttrs.posterImage?.small || null,
+          subtype: mediaAttrs.subtype || 'Anime',
+          year: mediaAttrs.startDate ? mediaAttrs.startDate.slice(0, 4) : 'TBA',
+          role: cast.attributes?.role || 'Supporting',
+          voiceActors: vaEntry ? [vaEntry] : [],
+        });
+      } else {
+        const existing = appearances.find((a) => a.mediaId === mediaId);
+        if (existing && vaEntry && !existing.voiceActors.some((v) => String(v.id) === String(vaEntry.id))) {
+          existing.voiceActors.push(vaEntry);
+        }
+      }
+    });
+
+    return appearances;
+  } catch (err) {
+    console.warn(`Could not load media appearances for character ${characterId}:`, err);
+    return [];
+  }
+}
+
+// 3. Fetch Character Specific Quotes
+export async function getCharacterQuotes(characterId) {
+  try {
+    const data = await fetchKitsu(`/characters/${characterId}/quotes`, {
+      'page[limit]': 10,
+    });
+
+    return (data.data || []).map((q) => ({
+      id: q.id,
+      content: q.attributes?.content || '',
+      linesCount: q.attributes?.linesCount || 0,
+    })).filter((q) => q.content.trim().length > 0);
+  } catch (err) {
+    console.warn(`Could not load quotes for character ${characterId}:`, err);
+    return [];
+  }
+}
 
 // Fetch all episodes by looping through Kitsu's 20-item pages
 export async function getAllAnimeEpisodes(animeId, maxLimit = 1000) {

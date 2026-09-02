@@ -29,6 +29,7 @@ import {
   BookOpen,
   GitCommit
 } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 
 const CHUNK_SIZE = 50;
 
@@ -52,6 +53,7 @@ export default function AnimeDetails() {
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedRange, setSelectedRange] = useState(0);
   const [episodeSearch, setEpisodeSearch] = useState('');
+  const location = useLocation();
 
   const {
     isInWatchlist,
@@ -748,66 +750,74 @@ export default function AnimeDetails() {
             )}
 
             {/* Tab 3: Characters */}
-            {activeTab === 'characters' && (
-              <div className="space-y-4">
-                {castings.length === 0 ? (
-                  <p className="text-sm text-slate-500 py-6">No character roster data available for this title.</p>
+{activeTab === 'characters' && (
+  <div className="space-y-4">
+    {castings.length === 0 ? (
+      <p className="text-sm text-slate-500 py-6">No character roster data available for this title.</p>
+    ) : (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+        {castings.map((cast) => (
+          <div
+            key={cast.id}
+            className="flex items-start justify-between bg-slate-900/70 border border-slate-800/80 rounded-xl p-3 hover:border-slate-700 transition-colors gap-3"
+          >
+            {/* 👇 UPDATED: Changed from <div> to <Link> to navigate to Character Details */}
+            <Link
+              to={`/characters/${cast.characterId || cast.id}`}
+              state={{ from: location }}
+              className="group/char flex items-start gap-3 min-w-0 flex-1 hover:opacity-90 transition-opacity"
+            >
+              <div className="w-12 h-14 rounded-lg bg-slate-800 overflow-hidden flex-shrink-0 border border-slate-700/50 group-hover/char:border-brand-primary/40 transition-colors">
+                {cast.image ? (
+                  <img src={cast.image} alt={cast.name} className="w-full h-full object-cover" loading="lazy" />
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                    {castings.map((cast) => (
-                      <div
-                        key={cast.id}
-                        className="flex items-start justify-between bg-slate-900/70 border border-slate-800/80 rounded-xl p-3 hover:border-slate-700 transition-colors gap-3"
-                      >
-                        <div className="flex items-start gap-3 min-w-0 flex-1">
-                          <div className="w-12 h-14 rounded-lg bg-slate-800 overflow-hidden flex-shrink-0 border border-slate-700/50">
-                            {cast.image ? (
-                              <img src={cast.image} alt={cast.name} className="w-full h-full object-cover" loading="lazy" />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-slate-600">
-                                <User className="w-5 h-5" />
-                              </div>
-                            )}
-                          </div>
-                          <div className="min-w-0 pr-2">
-                            <h4 className="text-xs font-semibold text-slate-100 line-clamp-1">{cast.name}</h4>
-                            <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-brand-primary/10 text-brand-primary border border-brand-primary/20 uppercase tracking-wider">
-                              {cast.role.toLowerCase()}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-col gap-2 flex-shrink-0 pl-3 border-l border-slate-800/80 max-w-[170px]">
-                          {cast.voiceActors.length > 0 ? (
-                            cast.voiceActors.map((va) => (
-                              <div key={va.id} className="flex items-center gap-2 justify-end text-right">
-                                <div className="min-w-0">
-                                  <h5 className="text-[11px] font-medium text-slate-200 truncate">{va.name}</h5>
-                                  <span className="text-[9px] text-slate-400 flex items-center justify-end gap-0.5">
-                                    <Mic className="w-2.5 h-2.5" /> {va.language}
-                                  </span>
-                                </div>
-                                <div className="w-8 h-9 rounded-md bg-slate-800 overflow-hidden flex-shrink-0 border border-slate-700/50">
-                                  {va.image ? (
-                                    <img src={va.image} alt={va.name} className="w-full h-full object-cover" loading="lazy" />
-                                  ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-slate-600">
-                                      <User className="w-3.5 h-3.5" />
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            ))
-                          ) : (
-                            <div className="text-[11px] text-slate-500 italic py-1">No VA credited</div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                  <div className="w-full h-full flex items-center justify-center text-slate-600">
+                    <User className="w-5 h-5" />
                   </div>
                 )}
               </div>
-            )}
+              <div className="min-w-0 pr-2">
+                <h4 className="text-xs font-semibold text-slate-100 line-clamp-1 group-hover/char:text-brand-primary transition-colors">
+                  {cast.name}
+                </h4>
+                <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-brand-primary/10 text-brand-primary border border-brand-primary/20 uppercase tracking-wider">
+                  {cast.role.toLowerCase()}
+                </span>
+              </div>
+            </Link>
+
+            {/* Voice Actor column remains separate so it doesn't trigger the character link */}
+            <div className="flex flex-col gap-2 flex-shrink-0 pl-3 border-l border-slate-800/80 max-w-[170px]">
+              {cast.voiceActors.length > 0 ? (
+                cast.voiceActors.map((va) => (
+                  <div key={va.id} className="flex items-center gap-2 justify-end text-right">
+                    <div className="min-w-0">
+                      <h5 className="text-[11px] font-medium text-slate-200 truncate">{va.name}</h5>
+                      <span className="text-[9px] text-slate-400 flex items-center justify-end gap-0.5">
+                        <Mic className="w-2.5 h-2.5" /> {va.language}
+                      </span>
+                    </div>
+                    <div className="w-8 h-9 rounded-md bg-slate-800 overflow-hidden flex-shrink-0 border border-slate-700/50">
+                      {va.image ? (
+                        <img src={va.image} alt={va.name} className="w-full h-full object-cover" loading="lazy" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-slate-600">
+                          <User className="w-3.5 h-3.5" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-[11px] text-slate-500 italic py-1">No VA credited</div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+)}
 
             {/* Tab 4: Staff & Creators */}
             {activeTab === 'staff' && (
