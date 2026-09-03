@@ -153,11 +153,15 @@ export const animeService = {
 };
 
 export const mangaService = {
-  searchManga,
-  getTrendingManga,
-  getMangaDetails,
-  getMangaChapters,
-  normalizeManga,
+  searchManga: searchManga,
+  getTrendingManga: getTrendingManga,
+  getMangaDetails: getMangaDetails,
+  getMangaChapters: getMangaChapters,
+  getMangaStaff: getMangaStaff,
+  getMangaCharacters: getMangaCharacters,
+  getMangaRelations: getMangaRelations,
+  getMangaMappings: getMangaMappings,
+  normalizeManga: normalizeManga,
 };
 
 // Helper to normalize Manga responses
@@ -168,24 +172,183 @@ export function normalizeManga(item) {
   return {
     id,
     canonicalTitle: attributes.canonicalTitle || attributes.titles?.en || attributes.titles?.en_us || 'Unknown Title',
+    englishTitle: attributes.titles?.en || attributes.titles?.en_us || null,
     japaneseTitle: attributes.titles?.ja_jp || '',
     romajiTitle: attributes.titles?.en_jp || '',
     synopsis: attributes.synopsis || attributes.description || 'No synopsis available.',
     averageRating: attributes.averageRating ? parseFloat(attributes.averageRating).toFixed(1) : 'N/A',
+    ratingFrequencies: attributes.ratingFrequencies || {},
     userCount: attributes.userCount || 0,
     favoritesCount: attributes.favoritesCount || 0,
     popularityRank: attributes.popularityRank || null,
     ratingRank: attributes.ratingRank || null,
     startDate: attributes.startDate || 'TBA',
     endDate: attributes.endDate || null,
+    nextRelease: attributes.nextRelease || null,
     status: attributes.status || 'Unknown',
-    subtype: attributes.subtype || 'manga', // manga, novel, manhwa, manhua, oneshot
+    ageRating: attributes.ageRating || null,
+    ageRatingGuide: attributes.ageRatingGuide || null,
+    subtype: attributes.subtype || attributes.mangaType || 'manga',
     chapterCount: attributes.chapterCount || '?',
     volumeCount: attributes.volumeCount || '?',
     serialization: attributes.serialization || null,
+    coverImageTopOffset: attributes.coverImageTopOffset || 0,
     posterImage: attributes.posterImage?.large || attributes.posterImage?.medium || attributes.posterImage?.original || '',
     coverImage: attributes.coverImage?.large || attributes.coverImage?.original || null,
   };
+}
+
+// 1. Fetch Manga Authors & Illustrators (mangaStaff)
+export async function getMangaStaff(mangaId) {
+  try {
+    const data = await fetchKitsu(`/manga/${mangaId}/manga-staff`, {
+      include: 'person',
+      'page[limit]': 20,
+    });
+    const included = data.included || [];
+
+    return (data.data || []).map((item) => {
+      const personRel = item.relationships?.person?.data;
+      const person = personRel
+        ? included.find((p) => p.type === 'people' && String(p.id) === String(personRel.id))
+        : null;
+
+      return {
+        id: item.id,
+        role: item.attributes?.role || 'Author / Artist',
+        person: person
+          ? {
+              id: person.id,
+              name: person.attributes?.name || 'Unknown Creator',
+              image: person.attributes?.image?.original || person.attributes?.image?.medium || null,
+            }
+          : null,
+      };
+    }).filter((s) => s.person !== null);
+  } catch (err) {
+    console.warn(`Could not load staff for manga ${mangaId}:`, err);
+    return [];
+  }
+}
+
+// 1. Fetch Chapters with max limit <= 20
+export async function getMangaChapters(mangaId, limit = 20, offset = 0) {
+  try {
+    const data = await fetchKitsu(`/manga/${mangaId}/chapters`, {
+      'page[limit]': Math.min(limit, 20), // Max allowed by Kitsu is 20
+      'page[offset]': offset,
+      sort: 'number',
+    });
+
+    return (data.data || []).map((ch) => ({
+      id: ch.id,
+      number: ch.attributes?.number || '?',
+      canonicalTitle: ch.attributes?.canonicalTitle || `Chapter ${ch.attributes?.number || ''}`,
+      volumeNumber: ch.attributes?.volumeNumber || null,
+      publishedDate: ch.attributes?.published || null,
+      synopsis: ch.attributes?.synopsis || '',
+    }));
+  } catch (err) {
+    console.warn(`Could not load chapters for manga ${mangaId}:`, err);
+    return [];
+  }
+}
+
+// 2. Fetch Characters using manga-characters with sideloaded character record
+export async function getMangaCharacters(mangaId) {
+  try {
+    const data = await fetchKitsu(`/manga/${mangaId}/manga-characters`, {
+      include: 'character',
+      'page[limit]': 20,
+    });
+    const included = data.included || [];
+
+    return (data.data || []).map((item) => {
+      const charRel = item.relationships?.character?.data;
+      const character = charRel
+        ? included.find((inc) => inc.type === 'characters' && String(inc.id) === String(charRel.id))
+        : null;
+
+      if (!character) return null;
+      const attrs = character.attributes || {};
+
+      return {
+        id: character.id,
+        role: item.attributes?.role || 'Main',
+        name: attrs.canonicalName || attrs.name || 'Unknown Character',
+        image: attrs.image?.original || attrs.image?.medium || null,
+      };
+    }).filter(Boolean);
+  } catch (err) {
+    console.warn(`Could not load characters for manga ${mangaId}:`, err);
+    return [];
+  }
+}
+
+// 3. Fetch Anime Adaptations & Spin-offs (mediaRelationships)
+export async function getMangaRelations(mangaId) {
+  try {
+    const data = await fetchKitsu(`/manga/${mangaId}/media-relationships`, {
+      include: 'destination',
+      'page[limit]': 10,
+    });
+    const included = data.included || [];
+
+    return (data.data || []).map((rel) => {
+      const destRel = rel.relationships?.destination?.data;
+      const dest = destRel
+        ? included.find((item) => item.type === destRel.type && String(item.id) === String(destRel.id))
+        : null;
+
+      if (!dest) return null;
+      const attrs = dest.attributes || {};
+
+      return {
+        id: rel.id,
+        role: rel.attributes?.role || 'related',
+        type: destRel.type, // 'anime' or 'manga'
+        destination: {
+          id: dest.id,
+          canonicalTitle: attrs.canonicalTitle || 'Unknown Title',
+          posterImage: attrs.posterImage?.small || attrs.posterImage?.medium || null,
+          subtype: attrs.subtype || destRel.type,
+          startDate: attrs.startDate || null,
+        },
+      };
+    }).filter(Boolean);
+  } catch (err) {
+    console.warn(`Could not load relations for manga ${mangaId}:`, err);
+    return [];
+  }
+}
+
+// 4. Fetch External Manga Database Links (MAL, MangaUpdates)
+export async function getMangaMappings(mangaId) {
+  try {
+    const data = await fetchKitsu(`/manga/${mangaId}/mappings`, { 'page[limit]': 20 });
+
+    const externalUrls = {
+      'myanimelist/manga': (id) => `https://myanimelist.net/manga/${id}`,
+      'mangaupdates': (id) => `https://www.mangaupdates.com/series.html?id=${id}`,
+      'anilist/manga': (id) => `https://anilist.co/manga/${id}`,
+    };
+
+    return (data.data || []).map((m) => {
+      const site = m.attributes?.externalSite || '';
+      const extId = m.attributes?.externalId || '';
+      const urlBuilder = externalUrls[site];
+
+      return {
+        id: m.id,
+        site,
+        externalId: extId,
+        url: urlBuilder ? urlBuilder(extId) : null,
+      };
+    }).filter((m) => m.url !== null);
+  } catch (err) {
+    console.warn(`Could not load mappings for manga ${mangaId}:`, err);
+    return [];
+  }
 }
 
 // 1. Search & Filter Manga
@@ -234,29 +397,6 @@ export async function getMangaDetails(mangaId) {
   } catch (err) {
     console.error(`Error fetching manga ${mangaId}:`, err);
     return null;
-  }
-}
-
-// 4. Fetch Chapters for a Manga
-export async function getMangaChapters(mangaId, limit = 100, offset = 0) {
-  try {
-    const data = await fetchKitsu(`/manga/${mangaId}/chapters`, {
-      'page[limit]': limit,
-      'page[offset]': offset,
-      sort: 'number',
-    });
-
-    return (data.data || []).map((ch) => ({
-      id: ch.id,
-      number: ch.attributes?.number || '?',
-      canonicalTitle: ch.attributes?.canonicalTitle || `Chapter ${ch.attributes?.number || ''}`,
-      volumeNumber: ch.attributes?.volumeNumber || null,
-      publishedDate: ch.attributes?.published || null,
-      synopsis: ch.attributes?.synopsis || '',
-    }));
-  } catch (err) {
-    console.warn(`Could not load chapters for manga ${mangaId}:`, err);
-    return [];
   }
 }
 
