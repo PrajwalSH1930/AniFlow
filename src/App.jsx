@@ -13,6 +13,8 @@ import { WatchlistProvider } from './context/WatchlistContext';
 import Seasonal from './pages/Seasonal';
 import Characters from './pages/Characters';
 import CharacterDetails from './pages/CharacterDetails';
+import MangaExplore from './pages/MangaExplore';
+import MangaDetails from './pages/MangaDetails';
 
 export default function App() {
   return (
@@ -31,6 +33,8 @@ export default function App() {
                   <Route path="/seasonal" element={<Seasonal />} />
                   <Route path="/characters" element={<Characters />} />
                   <Route path="/characters/:id" element={<CharacterDetails />} />
+                  <Route path="/manga" element={<MangaExplore />} />
+                  <Route path="/manga/:id" element={<MangaDetails />} />
                 </Routes>
               </main>
               <Footer />

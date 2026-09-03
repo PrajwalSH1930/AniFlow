@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Flame, Compass, Bookmark, Tv, Calendar, User } from 'lucide-react';
+import { Search, Flame, Compass, Bookmark, Tv, Calendar, User, BookOpen } from 'lucide-react';
 import AniFlowLogo from './AniFlowLogo';
 
 export default function Navbar() {
@@ -59,6 +59,13 @@ export default function Navbar() {
           <User className="w-4 h-4" />
             
             <span className="hidden md:inline">Characters</span>
+          </Link>
+          <Link
+            to="/manga"
+            className="flex items-center gap-1.5 text-xs font-semibold text-slate-300 hover:text-brand-primary transition-colors"
+          >
+            <BookOpen className="w-4 h-4" />
+            <span className='hidden md:inline'>Manga</span>
           </Link>
         </div>
       </div>

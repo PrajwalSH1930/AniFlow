@@ -152,6 +152,114 @@ export const animeService = {
   },
 };
 
+export const mangaService = {
+  searchManga,
+  getTrendingManga,
+  getMangaDetails,
+  getMangaChapters,
+  normalizeManga,
+};
+
+// Helper to normalize Manga responses
+export function normalizeManga(item) {
+  if (!item) return null;
+  const { id, attributes = {} } = item;
+
+  return {
+    id,
+    canonicalTitle: attributes.canonicalTitle || attributes.titles?.en || attributes.titles?.en_us || 'Unknown Title',
+    japaneseTitle: attributes.titles?.ja_jp || '',
+    romajiTitle: attributes.titles?.en_jp || '',
+    synopsis: attributes.synopsis || attributes.description || 'No synopsis available.',
+    averageRating: attributes.averageRating ? parseFloat(attributes.averageRating).toFixed(1) : 'N/A',
+    userCount: attributes.userCount || 0,
+    favoritesCount: attributes.favoritesCount || 0,
+    popularityRank: attributes.popularityRank || null,
+    ratingRank: attributes.ratingRank || null,
+    startDate: attributes.startDate || 'TBA',
+    endDate: attributes.endDate || null,
+    status: attributes.status || 'Unknown',
+    subtype: attributes.subtype || 'manga', // manga, novel, manhwa, manhua, oneshot
+    chapterCount: attributes.chapterCount || '?',
+    volumeCount: attributes.volumeCount || '?',
+    serialization: attributes.serialization || null,
+    posterImage: attributes.posterImage?.large || attributes.posterImage?.medium || attributes.posterImage?.original || '',
+    coverImage: attributes.coverImage?.large || attributes.coverImage?.original || null,
+  };
+}
+
+// 1. Search & Filter Manga
+export async function searchManga({ query, category, sort = '-userCount', limit = 20, offset = 0 } = {}) {
+  const params = {
+    'page[limit]': limit,
+    'page[offset]': offset,
+    sort,
+  };
+
+  if (query && query.trim()) {
+    params['filter[text]'] = query.trim();
+  }
+  if (category && category.trim()) {
+    params['filter[categories]'] = category.trim();
+  }
+
+  try {
+    const data = await fetchKitsu('/manga', params);
+    return {
+      results: (data.data || []).map(normalizeManga),
+      total: data.meta?.count || 0,
+    };
+  } catch (err) {
+    console.error('Error searching manga:', err);
+    return { results: [], total: 0 };
+  }
+}
+
+// 2. Fetch Trending Manga
+export async function getTrendingManga(limit = 10) {
+  try {
+    const data = await fetchKitsu('/trending/manga', { 'page[limit]': limit });
+    return (data.data || []).map(normalizeManga);
+  } catch (err) {
+    console.error('Error fetching trending manga:', err);
+    return [];
+  }
+}
+
+// 3. Fetch Single Manga Details
+export async function getMangaDetails(mangaId) {
+  try {
+    const data = await fetchKitsu(`/manga/${mangaId}`);
+    return normalizeManga(data.data);
+  } catch (err) {
+    console.error(`Error fetching manga ${mangaId}:`, err);
+    return null;
+  }
+}
+
+// 4. Fetch Chapters for a Manga
+export async function getMangaChapters(mangaId, limit = 100, offset = 0) {
+  try {
+    const data = await fetchKitsu(`/manga/${mangaId}/chapters`, {
+      'page[limit]': limit,
+      'page[offset]': offset,
+      sort: 'number',
+    });
+
+    return (data.data || []).map((ch) => ({
+      id: ch.id,
+      number: ch.attributes?.number || '?',
+      canonicalTitle: ch.attributes?.canonicalTitle || `Chapter ${ch.attributes?.number || ''}`,
+      volumeNumber: ch.attributes?.volumeNumber || null,
+      publishedDate: ch.attributes?.published || null,
+      synopsis: ch.attributes?.synopsis || '',
+    }));
+  } catch (err) {
+    console.warn(`Could not load chapters for manga ${mangaId}:`, err);
+    return [];
+  }
+}
+
 // 1. Fetch Character Record & Normalize
 export async function getCharacterDetails(characterId) {
   try {
