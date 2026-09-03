@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 const BASE_URL = 'https://kitsu.io/api/edge';
 
 const defaultHeaders = {
@@ -18,17 +19,29 @@ export async function fetchKitsu(endpoint, params = {}) {
   const queryString = query.toString();
   const url = `${BASE_URL}${endpoint}${queryString ? `?${queryString}` : ''}`;
 
-  const response = await fetch(url, { headers: defaultHeaders });
+  try {
+    const response = await fetch(url, { headers: defaultHeaders });
 
-  if (!response.ok) {
-    throw new Error(`Kitsu API Error: ${response.status} ${response.statusText}`);
+    // Gracefully handle 404 and 500 without throwing uncaught exceptions
+    if (response.status === 404 || response.status === 500) {
+      return null;
+    }
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const json = await response.json();
+    return json;
+  } catch (err) {
+    return null;
   }
-
-  const json = await response.json();
-  return json;
 }
 
-// Data normalizer: flattens raw Kitsu JSON:API items into clean JS objects
+// -------------------------------------------------------------
+// Normalizers
+// -------------------------------------------------------------
+
 export function normalizeAnime(item) {
   if (!item) return null;
   const { id, attributes = {}, relationships = {} } = item;
@@ -65,106 +78,6 @@ export function normalizeAnime(item) {
   };
 }
 
-// Ready-to-use API Methods for AniFlow
-export const animeService = {
-  // Trending anime for home hero & carousels
-  getTrending: async (limit = 10) => {
-    const data = await fetchKitsu('/trending/anime', { 'page[limit]': limit });
-    return (data.data || []).map(normalizeAnime);
-  },
-
-  // Highest rated anime
-  getTopRated: async (limit = 12, offset = 0) => {
-    const data = await fetchKitsu('/anime', {
-      'sort': '-averageRating',
-      'page[limit]': limit,
-      'page[offset]': offset,
-    });
-    return (data.data || []).map(normalizeAnime);
-  },
-
-  // Most popular anime
-  getPopular: async (limit = 12, offset = 0) => {
-    const data = await fetchKitsu('/anime', {
-      'sort': '-userCount',
-      'page[limit]': limit,
-      'page[offset]': offset,
-    });
-    return (data.data || []).map(normalizeAnime);
-  },
-
-  // Search & Filter
-  searchAnime: async ({ query, category, sort = '-userCount', limit = 20, offset = 0 }) => {
-    const params = {
-      'page[limit]': limit,
-      'page[offset]': offset,
-      'sort': sort,
-    };
-
-    if (query) params['filter[text]'] = query;
-    if (category) params['filter[categories]'] = category;
-
-    const data = await fetchKitsu('/anime', params);
-    return {
-      results: (data.data || []).map(normalizeAnime),
-      total: data.meta?.count || 0,
-    };
-  },
-
-  // Details for a single anime
-  getAnimeDetails: async (id) => {
-    const data = await fetchKitsu(`/anime/${id}`);
-    return normalizeAnime(data.data);
-  },
-
-  // Episodes for an anime
-  // Episodes for an anime (max page limit: 20)
-  getAnimeEpisodes: getAllAnimeEpisodes,
-  getAnimeCastings: getAnimeCastings,
-  getSeasonalAnime: getSeasonalAnime,
-  getAnimeStreamingLinks: getAnimeStreamingLinks,
-  getAnimeReviews: getAnimeReviews,
-  getAnimeRelations: getAnimeRelations,
-  getAnimeProductions: getAnimeProductions,
-  getAnimeStaff: getAnimeStaff,
-  getAnimeMappings: getAnimeMappings,
-  getAnimeQuotes: getAnimeQuotes,
-  getAllCategories: getAllCategories,
-  getAnimeSourceManga: getAnimeSourceManga,
-  getFranchiseInstallments: getFranchiseInstallments,
-  searchCharacters: searchCharacters,
-  getPersonDetails: getPersonDetails,
-  getCharacterDetails: getCharacterDetails,
-  getCharacterMediaAndCastings: getCharacterMediaAndCastings,
-  getCharacterQuotes: getCharacterQuotes,
-
-  // Categories / Genres
-  getCategories: async (limit = 40) => {
-    const data = await fetchKitsu('/categories', {
-      'page[limit]': limit,
-      'sort': '-totalMediaCount',
-    });
-    return (data.data || []).map((cat) => ({
-      id: cat.id,
-      title: cat.attributes.title,
-      slug: cat.attributes.slug,
-    }));
-  },
-};
-
-export const mangaService = {
-  searchManga: searchManga,
-  getTrendingManga: getTrendingManga,
-  getMangaDetails: getMangaDetails,
-  getMangaChapters: getMangaChapters,
-  getMangaStaff: getMangaStaff,
-  getMangaCharacters: getMangaCharacters,
-  getMangaRelations: getMangaRelations,
-  getMangaMappings: getMangaMappings,
-  normalizeManga: normalizeManga,
-};
-
-// Helper to normalize Manga responses
 export function normalizeManga(item) {
   if (!item) return null;
   const { id, attributes = {} } = item;
@@ -198,315 +111,80 @@ export function normalizeManga(item) {
   };
 }
 
-// 1. Fetch Manga Authors & Illustrators (mangaStaff)
-export async function getMangaStaff(mangaId) {
+// -------------------------------------------------------------
+// Anime Endpoints
+// -------------------------------------------------------------
+
+export async function getTrendingAnime(limit = 10) {
   try {
-    const data = await fetchKitsu(`/manga/${mangaId}/manga-staff`, {
-      include: 'person',
-      'page[limit]': 20,
-    });
-    const included = data.included || [];
-
-    return (data.data || []).map((item) => {
-      const personRel = item.relationships?.person?.data;
-      const person = personRel
-        ? included.find((p) => p.type === 'people' && String(p.id) === String(personRel.id))
-        : null;
-
-      return {
-        id: item.id,
-        role: item.attributes?.role || 'Author / Artist',
-        person: person
-          ? {
-              id: person.id,
-              name: person.attributes?.name || 'Unknown Creator',
-              image: person.attributes?.image?.original || person.attributes?.image?.medium || null,
-            }
-          : null,
-      };
-    }).filter((s) => s.person !== null);
+    const data = await fetchKitsu('/trending/anime', { 'page[limit]': limit });
+    return (data.data || []).map(normalizeAnime);
   } catch (err) {
-    console.warn(`Could not load staff for manga ${mangaId}:`, err);
+    console.error('Error fetching trending anime:', err);
     return [];
   }
 }
 
-// 1. Fetch Chapters with max limit <= 20
-export async function getMangaChapters(mangaId, limit = 20, offset = 0) {
+export async function getTopRatedAnime(limit = 12, offset = 0) {
   try {
-    const data = await fetchKitsu(`/manga/${mangaId}/chapters`, {
-      'page[limit]': Math.min(limit, 20), // Max allowed by Kitsu is 20
+    const data = await fetchKitsu('/anime', {
+      sort: '-averageRating',
+      'page[limit]': limit,
       'page[offset]': offset,
-      sort: 'number',
     });
-
-    return (data.data || []).map((ch) => ({
-      id: ch.id,
-      number: ch.attributes?.number || '?',
-      canonicalTitle: ch.attributes?.canonicalTitle || `Chapter ${ch.attributes?.number || ''}`,
-      volumeNumber: ch.attributes?.volumeNumber || null,
-      publishedDate: ch.attributes?.published || null,
-      synopsis: ch.attributes?.synopsis || '',
-    }));
+    return (data.data || []).map(normalizeAnime);
   } catch (err) {
-    console.warn(`Could not load chapters for manga ${mangaId}:`, err);
+    console.error('Error fetching top rated anime:', err);
     return [];
   }
 }
 
-// 2. Fetch Characters using manga-characters with sideloaded character record
-export async function getMangaCharacters(mangaId) {
+export async function getPopularAnime(limit = 12, offset = 0) {
   try {
-    const data = await fetchKitsu(`/manga/${mangaId}/manga-characters`, {
-      include: 'character',
-      'page[limit]': 20,
+    const data = await fetchKitsu('/anime', {
+      sort: '-userCount',
+      'page[limit]': limit,
+      'page[offset]': offset,
     });
-    const included = data.included || [];
-
-    return (data.data || []).map((item) => {
-      const charRel = item.relationships?.character?.data;
-      const character = charRel
-        ? included.find((inc) => inc.type === 'characters' && String(inc.id) === String(charRel.id))
-        : null;
-
-      if (!character) return null;
-      const attrs = character.attributes || {};
-
-      return {
-        id: character.id,
-        role: item.attributes?.role || 'Main',
-        name: attrs.canonicalName || attrs.name || 'Unknown Character',
-        image: attrs.image?.original || attrs.image?.medium || null,
-      };
-    }).filter(Boolean);
+    return (data.data || []).map(normalizeAnime);
   } catch (err) {
-    console.warn(`Could not load characters for manga ${mangaId}:`, err);
+    console.error('Error fetching popular anime:', err);
     return [];
   }
 }
 
-// 3. Fetch Anime Adaptations & Spin-offs (mediaRelationships)
-export async function getMangaRelations(mangaId) {
-  try {
-    const data = await fetchKitsu(`/manga/${mangaId}/media-relationships`, {
-      include: 'destination',
-      'page[limit]': 10,
-    });
-    const included = data.included || [];
-
-    return (data.data || []).map((rel) => {
-      const destRel = rel.relationships?.destination?.data;
-      const dest = destRel
-        ? included.find((item) => item.type === destRel.type && String(item.id) === String(destRel.id))
-        : null;
-
-      if (!dest) return null;
-      const attrs = dest.attributes || {};
-
-      return {
-        id: rel.id,
-        role: rel.attributes?.role || 'related',
-        type: destRel.type, // 'anime' or 'manga'
-        destination: {
-          id: dest.id,
-          canonicalTitle: attrs.canonicalTitle || 'Unknown Title',
-          posterImage: attrs.posterImage?.small || attrs.posterImage?.medium || null,
-          subtype: attrs.subtype || destRel.type,
-          startDate: attrs.startDate || null,
-        },
-      };
-    }).filter(Boolean);
-  } catch (err) {
-    console.warn(`Could not load relations for manga ${mangaId}:`, err);
-    return [];
-  }
-}
-
-// 4. Fetch External Manga Database Links (MAL, MangaUpdates)
-export async function getMangaMappings(mangaId) {
-  try {
-    const data = await fetchKitsu(`/manga/${mangaId}/mappings`, { 'page[limit]': 20 });
-
-    const externalUrls = {
-      'myanimelist/manga': (id) => `https://myanimelist.net/manga/${id}`,
-      'mangaupdates': (id) => `https://www.mangaupdates.com/series.html?id=${id}`,
-      'anilist/manga': (id) => `https://anilist.co/manga/${id}`,
-    };
-
-    return (data.data || []).map((m) => {
-      const site = m.attributes?.externalSite || '';
-      const extId = m.attributes?.externalId || '';
-      const urlBuilder = externalUrls[site];
-
-      return {
-        id: m.id,
-        site,
-        externalId: extId,
-        url: urlBuilder ? urlBuilder(extId) : null,
-      };
-    }).filter((m) => m.url !== null);
-  } catch (err) {
-    console.warn(`Could not load mappings for manga ${mangaId}:`, err);
-    return [];
-  }
-}
-
-// 1. Search & Filter Manga
-export async function searchManga({ query, category, sort = '-userCount', limit = 20, offset = 0 } = {}) {
+export async function searchAnime({ query, category, sort = '-userCount', limit = 20, offset = 0 }) {
   const params = {
     'page[limit]': limit,
     'page[offset]': offset,
     sort,
   };
 
-  if (query && query.trim()) {
-    params['filter[text]'] = query.trim();
-  }
-  if (category && category.trim()) {
-    params['filter[categories]'] = category.trim();
-  }
+  if (query) params['filter[text]'] = query;
+  if (category) params['filter[categories]'] = category;
 
   try {
-    const data = await fetchKitsu('/manga', params);
+    const data = await fetchKitsu('/anime', params);
     return {
-      results: (data.data || []).map(normalizeManga),
+      results: (data.data || []).map(normalizeAnime),
       total: data.meta?.count || 0,
     };
   } catch (err) {
-    console.error('Error searching manga:', err);
+    console.error('Error searching anime:', err);
     return { results: [], total: 0 };
   }
 }
 
-// 2. Fetch Trending Manga
-export async function getTrendingManga(limit = 10) {
+export async function getAnimeDetails(id) {
   try {
-    const data = await fetchKitsu('/trending/manga', { 'page[limit]': limit });
-    return (data.data || []).map(normalizeManga);
+    const data = await fetchKitsu(`/anime/${id}`);
+    return normalizeAnime(data.data);
   } catch (err) {
-    console.error('Error fetching trending manga:', err);
-    return [];
-  }
-}
-
-// 3. Fetch Single Manga Details
-export async function getMangaDetails(mangaId) {
-  try {
-    const data = await fetchKitsu(`/manga/${mangaId}`);
-    return normalizeManga(data.data);
-  } catch (err) {
-    console.error(`Error fetching manga ${mangaId}:`, err);
+    console.error(`Error fetching anime details for ID ${id}:`, err);
     return null;
   }
 }
 
-// 1. Fetch Character Record & Normalize
-export async function getCharacterDetails(characterId) {
-  try {
-    const data = await fetchKitsu(`/characters/${characterId}`);
-    const item = data.data;
-    if (!item) return null;
-
-    const attrs = item.attributes || {};
-    return {
-      id: item.id,
-      name: attrs.canonicalName || attrs.names?.en || attrs.name || 'Unknown Character',
-      japaneseName: attrs.names?.ja_jp || '',
-      otherNames: attrs.otherNames || [],
-      slug: attrs.slug || '',
-      malId: attrs.malId || null,
-      description: attrs.description || 'No biography available for this character.',
-      image: attrs.image?.original || attrs.image?.large || attrs.image?.medium || null,
-      createdAt: attrs.createdAt,
-    };
-  } catch (err) {
-    console.error(`Error fetching character ${characterId}:`, err);
-    return null;
-  }
-}
-
-// 2. Fetch Character's Anime Appearances & Voice Actors
-export async function getCharacterMediaAndCastings(characterId) {
-  try {
-    const data = await fetchKitsu(`/castings`, {
-      'filter[character_id]': characterId,
-      include: 'media,person',
-      'page[limit]': 20,
-    });
-    const included = data.included || [];
-
-    const findIncluded = (type, id) => {
-      if (!id) return null;
-      return included.find((item) => item.type === type && String(item.id) === String(id));
-    };
-
-    const appearances = [];
-    const seenMedia = new Set();
-
-    (data.data || []).forEach((cast) => {
-      const mediaRel = cast.relationships?.media?.data;
-      const personRel = cast.relationships?.person?.data;
-
-      const mediaItem = mediaRel ? findIncluded(mediaRel.type, mediaRel.id) : null;
-      const personItem = personRel ? findIncluded(personRel.type, personRel.id) : null;
-
-      if (!mediaItem) return;
-
-      const mediaId = String(mediaItem.id);
-      const mediaAttrs = mediaItem.attributes || {};
-
-      const vaEntry = personItem ? {
-        id: personItem.id,
-        name: personItem.attributes?.name || 'Voice Actor',
-        image: personItem.attributes?.image?.original || personItem.attributes?.image?.medium || null,
-        language: cast.attributes?.voiceActor ? 'Japanese' : (cast.attributes?.language || 'Voice Actor'),
-      } : null;
-
-      if (!seenMedia.has(mediaId)) {
-        seenMedia.add(mediaId);
-        appearances.push({
-          mediaId,
-          title: mediaAttrs.canonicalTitle || mediaAttrs.titles?.en || 'Unknown Anime',
-          posterImage: mediaAttrs.posterImage?.medium || mediaAttrs.posterImage?.small || null,
-          subtype: mediaAttrs.subtype || 'Anime',
-          year: mediaAttrs.startDate ? mediaAttrs.startDate.slice(0, 4) : 'TBA',
-          role: cast.attributes?.role || 'Supporting',
-          voiceActors: vaEntry ? [vaEntry] : [],
-        });
-      } else {
-        const existing = appearances.find((a) => a.mediaId === mediaId);
-        if (existing && vaEntry && !existing.voiceActors.some((v) => String(v.id) === String(vaEntry.id))) {
-          existing.voiceActors.push(vaEntry);
-        }
-      }
-    });
-
-    return appearances;
-  } catch (err) {
-    console.warn(`Could not load media appearances for character ${characterId}:`, err);
-    return [];
-  }
-}
-
-// 3. Fetch Character Specific Quotes
-export async function getCharacterQuotes(characterId) {
-  try {
-    const data = await fetchKitsu(`/characters/${characterId}/quotes`, {
-      'page[limit]': 10,
-    });
-
-    return (data.data || []).map((q) => ({
-      id: q.id,
-      content: q.attributes?.content || '',
-      linesCount: q.attributes?.linesCount || 0,
-    })).filter((q) => q.content.trim().length > 0);
-  } catch (err) {
-    console.warn(`Could not load quotes for character ${characterId}:`, err);
-    return [];
-  }
-}
-
-// Fetch all episodes by looping through Kitsu's 20-item pages
 export async function getAllAnimeEpisodes(animeId, maxLimit = 1000) {
   let allEpisodes = [];
   let offset = 0;
@@ -518,7 +196,7 @@ export async function getAllAnimeEpisodes(animeId, maxLimit = 1000) {
       const data = await fetchKitsu('/episodes', {
         'filter[mediaType]': 'Anime',
         'filter[media_id]': animeId,
-        'sort': 'number',
+        sort: 'number',
         'page[limit]': pageSize,
         'page[offset]': offset,
       });
@@ -526,7 +204,6 @@ export async function getAllAnimeEpisodes(animeId, maxLimit = 1000) {
       const episodes = data.data || [];
       allEpisodes = [...allEpisodes, ...episodes];
 
-      // Stop if there are no more episodes returned or we hit the safety threshold
       if (episodes.length < pageSize || allEpisodes.length >= maxLimit) {
         hasMore = false;
       } else {
@@ -540,13 +217,10 @@ export async function getAllAnimeEpisodes(animeId, maxLimit = 1000) {
   return allEpisodes;
 }
 
-// Fetch character roster and linked voice actors
-// Fetch character roster and aggregate multiple voice actors under a single character entry
-// Fetch character roster and aggregate multiple voice actors under a single character entry
 export async function getAnimeCastings(animeId, maxLimit = 100) {
   const characterMap = new Map();
   let offset = 0;
-  const pageSize = 20; // Hard max limit for Kitsu API
+  const pageSize = 20;
   let hasMore = true;
 
   try {
@@ -555,7 +229,7 @@ export async function getAnimeCastings(animeId, maxLimit = 100) {
         'filter[media_type]': 'Anime',
         'filter[media_id]': animeId,
         'filter[is_character]': 'true',
-        'include': 'character,person',
+        include: 'character,person',
         'page[limit]': pageSize,
         'page[offset]': offset,
       });
@@ -586,7 +260,7 @@ export async function getAnimeCastings(animeId, maxLimit = 100) {
               id: personItem.id,
               name: personItem.attributes?.name || 'Unknown Actor',
               image: personItem.attributes?.image?.original || personItem.attributes?.image?.medium || null,
-              language: language,
+              language,
             }
           : null;
 
@@ -595,7 +269,7 @@ export async function getAnimeCastings(animeId, maxLimit = 100) {
             id: charId,
             name: charItem.attributes?.canonicalName || charItem.attributes?.names?.en || 'Unknown Character',
             image: charItem.attributes?.image?.original || charItem.attributes?.image?.medium || null,
-            role: role,
+            role,
             voiceActors: vaEntry ? [vaEntry] : [],
           });
         } else {
@@ -606,7 +280,6 @@ export async function getAnimeCastings(animeId, maxLimit = 100) {
         }
       });
 
-      // Stop pagination if we reached the end or max requested limit
       if (castingsList.length < pageSize || characterMap.size >= maxLimit) {
         hasMore = false;
       } else {
@@ -621,129 +294,7 @@ export async function getAnimeCastings(animeId, maxLimit = 100) {
   }
 }
 
-// 1. Fetch Source Adaptation / Linked Manga
-export async function getAnimeSourceManga(animeId) {
-  try {
-    const data = await fetchKitsu(`/anime/${animeId}/media-relationships`, {
-      include: 'destination',
-      'filter[role]': 'adaptation',
-    });
-    const included = data.included || [];
-
-    return (data.data || []).map((rel) => {
-      const dest = rel.relationships?.destination?.data;
-      const target = dest ? included.find((item) => item.type === 'manga' && String(item.id) === String(dest.id)) : null;
-      if (!target) return null;
-
-      const attrs = target.attributes || {};
-      return {
-        id: target.id,
-        title: attrs.canonicalTitle || attrs.titles?.en || 'Manga Adaptation',
-        posterImage: attrs.posterImage?.medium || attrs.posterImage?.original || null,
-        subtype: attrs.subtype || 'manga',
-        chapterCount: attrs.chapterCount || '?',
-        volumeCount: attrs.volumeCount || '?',
-        status: attrs.status || 'Unknown',
-        averageRating: attrs.averageRating ? parseFloat(attrs.averageRating).toFixed(1) : 'N/A',
-      };
-    }).filter(Boolean);
-  } catch (err) {
-    console.warn(`Could not load source adaptation for anime ${animeId}:`, err);
-    return [];
-  }
-}
-
-// 2. Fetch Full Franchise Installments Order
-export async function getFranchiseInstallments(animeId) {
-  try {
-    const data = await fetchKitsu(`/anime/${animeId}/installments`, {
-      include: 'media',
-      sort: 'position',
-    });
-    const included = data.included || [];
-
-    return (data.data || []).map((inst) => {
-      const mediaRel = inst.relationships?.media?.data;
-      const mediaItem = mediaRel ? included.find((item) => String(item.id) === String(mediaRel.id)) : null;
-      if (!mediaItem) return null;
-
-      const attrs = mediaItem.attributes || {};
-      return {
-        id: mediaItem.id,
-        type: mediaRel.type,
-        position: inst.attributes?.position ?? 0,
-        tag: inst.attributes?.tag || 'Main Story',
-        title: attrs.canonicalTitle || 'Unknown Title',
-        subtype: attrs.subtype || 'TV',
-        year: attrs.startDate ? attrs.startDate.slice(0, 4) : 'TBA',
-        posterImage: attrs.posterImage?.small || attrs.posterImage?.medium || null,
-      };
-    }).filter(Boolean);
-  } catch (err) {
-    console.warn(`Could not load installments for anime ${animeId}:`, err);
-    return [];
-  }
-}
-
-// 3. Global Character Directory & Search
-export async function searchCharacters(query = '', limit = 20, offset = 0) {
-  const params = {
-    'page[limit]': Math.min(limit, 20),
-    'page[offset]': offset,
-  };
-  if (query.trim()) {
-    params['filter[name]'] = query.trim();
-  }
-
-  try {
-    const data = await fetchKitsu('/characters', params);
-    return {
-      results: (data.data || []).map((c) => {
-        const attrs = c.attributes || {};
-        return {
-          id: c.id,
-          name: attrs.canonicalName || attrs.name || 'Unknown Character',
-          otherNames: attrs.otherNames || [],
-          image: attrs.image?.original || attrs.image?.medium || null,
-          description: attrs.description || 'No biography available.',
-        };
-      }),
-      total: data.meta?.count || 0,
-    };
-  } catch (err) {
-    console.error('Error searching characters:', err);
-    return { results: [], total: 0 };
-  }
-}
-
-// 4. Person / Voice Actor Filmography Profile
-export async function getPersonDetails(personId) {
-  try {
-    const data = await fetchKitsu(`/people/${personId}`, {
-      include: 'castings.media',
-    });
-    const attrs = data.data?.attributes || {};
-    const included = data.included || [];
-
-    const filmography = included
-      .filter((item) => item.type === 'anime' || item.type === 'manga')
-      .map((m) => normalizeAnime(m));
-
-    return {
-      id: data.data?.id,
-      name: attrs.name || 'Unknown Person',
-      image: attrs.image?.original || attrs.image?.medium || null,
-      birthday: attrs.birthday || null,
-      filmography,
-    };
-  } catch (err) {
-    console.error(`Error loading person ${personId}:`, err);
-    return null;
-  }
-}
-// Seasonal query helper
 export async function getSeasonalAnime({ year = new Date().getFullYear(), season = 'fall', limit = 20, offset = 0 }) {
-  // Season date ranges for ISO boundary queries
   const seasonRanges = {
     winter: { start: `${year}-01-01`, end: `${year}-03-31` },
     spring: { start: `${year}-04-01`, end: `${year}-06-30` },
@@ -756,7 +307,7 @@ export async function getSeasonalAnime({ year = new Date().getFullYear(), season
   const params = {
     'filter[seasonYear]': year,
     'filter[season]': season.toLowerCase(),
-    'sort': '-userCount',
+    sort: '-userCount',
     'page[limit]': Math.min(limit, 20),
     'page[offset]': offset,
   };
@@ -764,11 +315,10 @@ export async function getSeasonalAnime({ year = new Date().getFullYear(), season
   try {
     let data = await fetchKitsu('/anime', params);
 
-    // If seasonYear/season returns empty or unsupported for certain archives, fallback to date range query
     if (!data.data || data.data.length === 0) {
       data = await fetchKitsu('/anime', {
         'filter[startDate]': `${range.start}..${range.end}`,
-        'sort': '-userCount',
+        sort: '-userCount',
         'page[limit]': Math.min(limit, 20),
         'page[offset]': offset,
       });
@@ -784,7 +334,6 @@ export async function getSeasonalAnime({ year = new Date().getFullYear(), season
   }
 }
 
-// 1. Fetch Official Streaming Links (Crunchyroll, Netflix, Hulu, etc.)
 export async function getAnimeStreamingLinks(animeId) {
   try {
     const data = await fetchKitsu(`/anime/${animeId}/streaming-links`, {
@@ -807,13 +356,11 @@ export async function getAnimeStreamingLinks(animeId) {
         streamerLogo: streamerObj?.attributes?.logo || null,
       };
     });
-  } catch (err) {
-    console.warn(`Could not load streaming links for anime ${animeId}:`, err);
+  } catch {
     return [];
   }
 }
 
-// 2. Fetch Written Community Reviews
 export async function getAnimeReviews(animeId, limit = 6) {
   try {
     const data = await fetchKitsu(`/anime/${animeId}/reviews`, {
@@ -844,13 +391,11 @@ export async function getAnimeReviews(animeId, limit = 6) {
           : { name: 'Anonymous', avatar: null },
       };
     });
-  } catch (err) {
-    console.warn(`Could not load reviews for anime ${animeId}:`, err);
+  } catch {
     return [];
   }
 }
 
-// 3. Fetch Related Franchise Entries (Prequels, Sequels, Spin-offs)
 export async function getAnimeRelations(animeId) {
   try {
     const data = await fetchKitsu(`/anime/${animeId}/media-relationships`, {
@@ -868,17 +413,15 @@ export async function getAnimeRelations(animeId) {
 
       return {
         id: rel.id,
-        role: rel.attributes?.role || 'Relation', // 'prequel', 'sequel', 'side_story', 'spin_off'
+        role: rel.attributes?.role || 'Relation',
         destination: normalizeAnime(destObj),
       };
     }).filter(Boolean);
-  } catch (err) {
-    console.warn(`Could not load franchise relations for anime ${animeId}:`, err);
+  } catch {
     return [];
   }
 }
 
-// 1. Fetch Animation Studios & Production Companies
 export async function getAnimeProductions(animeId) {
   try {
     const data = await fetchKitsu(`/anime/${animeId}/anime-productions`, {
@@ -895,18 +438,16 @@ export async function getAnimeProductions(animeId) {
 
       return {
         id: item.id,
-        role: item.attributes?.role || 'Producer', // 'studio', 'producer', 'licensor'
+        role: item.attributes?.role || 'Producer',
         producerId: producer?.id,
         name: producer?.attributes?.name || 'Unknown Studio',
       };
     });
-  } catch (err) {
-    console.warn(`Could not load productions for anime ${animeId}:`, err);
+  } catch {
     return [];
   }
 }
 
-// 2. Fetch Staff & Creators (Directors, Music, Character Designers)
 export async function getAnimeStaff(animeId) {
   try {
     const data = await fetchKitsu(`/anime/${animeId}/anime-staff`, {
@@ -933,13 +474,11 @@ export async function getAnimeStaff(animeId) {
           : null,
       };
     }).filter((s) => s.person !== null);
-  } catch (err) {
-    console.warn(`Could not load staff for anime ${animeId}:`, err);
+  } catch {
     return [];
   }
 }
 
-// 3. Fetch External Database IDs (MyAnimeList, AniList, Anime-Planet)
 export async function getAnimeMappings(animeId) {
   try {
     const data = await fetchKitsu(`/anime/${animeId}/mappings`, {
@@ -965,32 +504,73 @@ export async function getAnimeMappings(animeId) {
         url: urlBuilder ? urlBuilder(extId) : null,
       };
     }).filter((m) => m.url !== null);
-  } catch (err) {
-    console.warn(`Could not load mappings for anime ${animeId}:`, err);
+  } catch {
     return [];
   }
 }
 
-// 4. Fetch Memorable Character Quotes
-export async function getAnimeQuotes(animeId) {
+export async function getAnimeSourceManga(animeId) {
   try {
-    const data = await fetchKitsu(`/anime/${animeId}/quotes`, {
-      'page[limit]': 10,
+    const data = await fetchKitsu(`/anime/${animeId}/media-relationships`, {
+      include: 'destination',
+      'filter[role]': 'adaptation',
+    });
+    const included = data.included || [];
+
+    return (data.data || []).map((rel) => {
+      const dest = rel.relationships?.destination?.data;
+      const target = dest ? included.find((item) => item.type === 'manga' && String(item.id) === String(dest.id)) : null;
+      if (!target) return null;
+
+      const attrs = target.attributes || {};
+      return {
+        id: target.id,
+        title: attrs.canonicalTitle || attrs.titles?.en || 'Manga Adaptation',
+        posterImage: attrs.posterImage?.medium || attrs.posterImage?.original || null,
+        subtype: attrs.subtype || 'manga',
+        chapterCount: attrs.chapterCount || '?',
+        volumeCount: attrs.volumeCount || '?',
+        status: attrs.status || 'Unknown',
+        averageRating: attrs.averageRating ? parseFloat(attrs.averageRating).toFixed(1) : 'N/A',
+      };
+    }).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+export async function getFranchiseInstallments(animeId) {
+  try {
+    const data = await fetchKitsu(`/anime/${animeId}/installments`, {
+      include: 'media',
+      'page[limit]': 20,
     });
 
-    return (data.data || []).map((q) => ({
-      id: q.id,
-      content: q.attributes?.content || '',
-      characterName: q.attributes?.characterName || 'Unknown Character',
-      linesCount: q.attributes?.linesCount || 0,
-    })).filter((q) => q.content.trim().length > 0);
-  } catch (err) {
-    console.warn(`Could not load quotes for anime ${animeId}:`, err);
+    if (!data || !data.data) return [];
+    const included = data.included || [];
+
+    return (data.data || []).map((inst) => {
+      const mediaRel = inst.relationships?.media?.data;
+      const mediaItem = mediaRel ? included.find((item) => String(item.id) === String(mediaRel.id)) : null;
+      if (!mediaItem) return null;
+
+      const attrs = mediaItem.attributes || {};
+      return {
+        id: mediaItem.id,
+        type: mediaRel.type,
+        position: inst.attributes?.position ?? 0,
+        tag: inst.attributes?.tag || 'Related Story',
+        title: attrs.canonicalTitle || 'Unknown Title',
+        subtype: attrs.subtype || 'TV',
+        year: attrs.startDate ? attrs.startDate.slice(0, 4) : 'TBA',
+        posterImage: attrs.posterImage?.small || attrs.posterImage?.medium || null,
+      };
+    }).filter(Boolean);
+  } catch {
     return [];
   }
 }
 
-// 5. Fetch Full Dynamic Category Hierarchy
 export async function getAllCategories(limit = 40) {
   try {
     const data = await fetchKitsu('/categories', {
@@ -1005,8 +585,481 @@ export async function getAllCategories(limit = 40) {
       description: c.attributes?.description || '',
       totalMediaCount: c.attributes?.totalMediaCount || 0,
     }));
-  } catch (err) {
-    console.warn('Could not load categories:', err);
+  } catch {
     return [];
   }
 }
+
+// -------------------------------------------------------------
+// Character Endpoints
+// -------------------------------------------------------------
+
+export async function searchCharacters(query = '', limit = 20, offset = 0) {
+  const params = {
+    'page[limit]': Math.min(limit, 20),
+    'page[offset]': offset,
+  };
+  if (query.trim()) {
+    params['filter[name]'] = query.trim();
+  }
+
+  try {
+    const data = await fetchKitsu('/characters', params);
+    return {
+      results: (data.data || []).map((c) => {
+        const attrs = c.attributes || {};
+        return {
+          id: c.id,
+          name: attrs.canonicalName || attrs.name || 'Unknown Character',
+          otherNames: attrs.otherNames || [],
+          image: attrs.image?.original || attrs.image?.medium || null,
+          description: attrs.description || 'No biography available.',
+        };
+      }),
+      total: data.meta?.count || 0,
+    };
+  } catch (err) {
+    console.error('Error searching characters:', err);
+    return { results: [], total: 0 };
+  }
+}
+
+export async function getCharacterDetails(characterId) {
+  try {
+    const data = await fetchKitsu(`/characters/${characterId}`);
+    const item = data.data;
+    if (!item) return null;
+
+    const attrs = item.attributes || {};
+    return {
+      id: item.id,
+      name: attrs.canonicalName || attrs.names?.en || attrs.name || 'Unknown Character',
+      japaneseName: attrs.names?.ja_jp || '',
+      otherNames: attrs.otherNames || [],
+      slug: attrs.slug || '',
+      malId: attrs.malId || null,
+      description: attrs.description || 'No biography available for this character.',
+      image: attrs.image?.original || attrs.image?.large || attrs.image?.medium || null,
+      createdAt: attrs.createdAt,
+    };
+  } catch (err) {
+    console.error(`Error fetching character ${characterId}:`, err);
+    return null;
+  }
+}
+
+export async function getCharacterMediaAndCastings(characterId) {
+  try {
+    const data = await fetchKitsu('/castings', {
+      'filter[character_id]': characterId,
+      include: 'media,person',
+      'page[limit]': 20,
+    });
+    const included = data.included || [];
+
+    const findIncluded = (type, id) => {
+      if (!id) return null;
+      return included.find((item) => item.type === type && String(item.id) === String(id));
+    };
+
+    const appearances = [];
+    const seenMedia = new Set();
+
+    (data.data || []).forEach((cast) => {
+      const mediaRel = cast.relationships?.media?.data;
+      const personRel = cast.relationships?.person?.data;
+
+      const mediaItem = mediaRel ? findIncluded(mediaRel.type, mediaRel.id) : null;
+      const personItem = personRel ? findIncluded(personRel.type, personRel.id) : null;
+
+      if (!mediaItem) return;
+
+      const mediaId = String(mediaItem.id);
+      const mediaAttrs = mediaItem.attributes || {};
+
+      const vaEntry = personItem
+        ? {
+            id: personItem.id,
+            name: personItem.attributes?.name || 'Voice Actor',
+            image: personItem.attributes?.image?.original || personItem.attributes?.image?.medium || null,
+            language: cast.attributes?.voiceActor ? 'Japanese' : (cast.attributes?.language || 'Voice Actor'),
+          }
+        : null;
+
+      if (!seenMedia.has(mediaId)) {
+        seenMedia.add(mediaId);
+        appearances.push({
+          mediaId,
+          mediaType: mediaRel.type,
+          title: mediaAttrs.canonicalTitle || mediaAttrs.titles?.en || 'Unknown Title',
+          posterImage: mediaAttrs.posterImage?.medium || mediaAttrs.posterImage?.small || null,
+          subtype: mediaAttrs.subtype || mediaRel.type,
+          year: mediaAttrs.startDate ? mediaAttrs.startDate.slice(0, 4) : 'TBA',
+          role: cast.attributes?.role || 'Supporting',
+          voiceActors: vaEntry ? [vaEntry] : [],
+        });
+      } else {
+        const existing = appearances.find((a) => a.mediaId === mediaId);
+        if (existing && vaEntry && !existing.voiceActors.some((v) => String(v.id) === String(vaEntry.id))) {
+          existing.voiceActors.push(vaEntry);
+        }
+      }
+    });
+
+    return appearances;
+  } catch {
+    return [];
+  }
+}
+
+// -------------------------------------------------------------
+// People & Staff Endpoints
+// -------------------------------------------------------------
+
+export async function getPersonDetails(personId) {
+  try {
+    const data = await fetchKitsu(`/people/${personId}`);
+    const item = data.data;
+    if (!item) return null;
+
+    const attrs = item.attributes || {};
+    return {
+      id: item.id,
+      name: attrs.name || attrs.canonicalName || 'Unknown Creator',
+      japaneseName: attrs.names?.ja_jp || attrs.japaneseName || '',
+      otherNames: attrs.otherNames || [],
+      birthday: attrs.birthday || null,
+      malId: attrs.malId || null,
+      description: attrs.description || attrs.about || 'No biographical overview provided.',
+      image: attrs.image?.original || attrs.image?.medium || null,
+    };
+  } catch (err) {
+    console.error(`Error fetching person ${personId}:`, err);
+    return null;
+  }
+}
+
+export async function getPersonVoiceActingRoles(personId) {
+  try {
+    const data = await fetchKitsu('/castings', {
+      'filter[person_id]': personId,
+      include: 'media,character',
+      'page[limit]': 20,
+    });
+    const included = data.included || [];
+
+    const findIncluded = (type, id) => {
+      if (!id) return null;
+      return included.find((item) => item.type === type && String(item.id) === String(id));
+    };
+
+    return (data.data || []).map((cast) => {
+      const mediaRel = cast.relationships?.media?.data;
+      const charRel = cast.relationships?.character?.data;
+
+      const mediaItem = mediaRel ? findIncluded(mediaRel.type, mediaRel.id) : null;
+      const charItem = charRel ? findIncluded('characters', charRel.id) : null;
+
+      if (!mediaItem) return null;
+
+      const mediaAttrs = mediaItem.attributes || {};
+      const charAttrs = charItem?.attributes || {};
+
+      return {
+        castingId: cast.id,
+        role: cast.attributes?.role || 'Voice Actor',
+        voiceActorType: cast.attributes?.voiceActor ? 'Japanese' : (cast.attributes?.language || 'Voice Actor'),
+        media: {
+          id: mediaItem.id,
+          type: mediaRel.type,
+          canonicalTitle: mediaAttrs.canonicalTitle || mediaAttrs.titles?.en || 'Unknown Title',
+          posterImage: mediaAttrs.posterImage?.small || mediaAttrs.posterImage?.medium || null,
+          subtype: mediaAttrs.subtype || mediaRel.type,
+          year: mediaAttrs.startDate ? mediaAttrs.startDate.slice(0, 4) : 'TBA',
+        },
+        character: charItem
+          ? {
+              id: charItem.id,
+              name: charAttrs.canonicalName || charAttrs.name || 'Character',
+              image: charAttrs.image?.original || charAttrs.image?.medium || null,
+            }
+          : null,
+      };
+    }).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+export async function getPersonStaffRoles(personId) {
+  try {
+    const data = await fetchKitsu('/anime-staff', {
+      'filter[person_id]': personId,
+      include: 'anime',
+      'page[limit]': 20,
+    });
+    const included = data.included || [];
+
+    return (data.data || []).map((item) => {
+      const animeRel = item.relationships?.anime?.data;
+      const animeItem = animeRel
+        ? included.find((inc) => inc.type === 'anime' && String(inc.id) === String(animeRel.id))
+        : null;
+
+      if (!animeItem) return null;
+      const attrs = animeItem.attributes || {};
+
+      return {
+        id: item.id,
+        role: item.attributes?.role || 'Staff Member',
+        anime: {
+          id: animeItem.id,
+          canonicalTitle: attrs.canonicalTitle || attrs.titles?.en || 'Unknown Anime',
+          posterImage: attrs.posterImage?.small || attrs.posterImage?.medium || null,
+          subtype: attrs.subtype || 'TV',
+          year: attrs.startDate ? attrs.startDate.slice(0, 4) : 'TBA',
+        },
+      };
+    }).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+// -------------------------------------------------------------
+// Manga Endpoints
+// -------------------------------------------------------------
+
+export async function searchManga({ query, category, sort = '-userCount', limit = 20, offset = 0 } = {}) {
+  const params = {
+    'page[limit]': limit,
+    'page[offset]': offset,
+    sort,
+  };
+
+  if (query && query.trim()) {
+    params['filter[text]'] = query.trim();
+  }
+  if (category && category.trim()) {
+    params['filter[categories]'] = category.trim();
+  }
+
+  try {
+    const data = await fetchKitsu('/manga', params);
+    return {
+      results: (data.data || []).map(normalizeManga),
+      total: data.meta?.count || 0,
+    };
+  } catch (err) {
+    console.error('Error searching manga:', err);
+    return { results: [], total: 0 };
+  }
+}
+
+export async function getTrendingManga(limit = 10) {
+  try {
+    const data = await fetchKitsu('/trending/manga', { 'page[limit]': limit });
+    return (data.data || []).map(normalizeManga);
+  } catch (err) {
+    console.error('Error fetching trending manga:', err);
+    return [];
+  }
+}
+
+export async function getMangaDetails(mangaId) {
+  try {
+    const data = await fetchKitsu(`/manga/${mangaId}`);
+    return normalizeManga(data.data);
+  } catch (err) {
+    console.error(`Error fetching manga ${mangaId}:`, err);
+    return null;
+  }
+}
+
+export async function getMangaChapters(mangaId, limit = 20, offset = 0) {
+  try {
+    const data = await fetchKitsu(`/manga/${mangaId}/chapters`, {
+      'page[limit]': Math.min(limit, 20),
+      'page[offset]': offset,
+      sort: 'number',
+    });
+
+    return (data.data || []).map((ch) => ({
+      id: ch.id,
+      number: ch.attributes?.number || '?',
+      canonicalTitle: ch.attributes?.canonicalTitle || `Chapter ${ch.attributes?.number || ''}`,
+      volumeNumber: ch.attributes?.volumeNumber || null,
+      publishedDate: ch.attributes?.published || null,
+      synopsis: ch.attributes?.synopsis || '',
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export async function getMangaStaff(mangaId) {
+  try {
+    const data = await fetchKitsu(`/manga/${mangaId}/manga-staff`, {
+      include: 'person',
+      'page[limit]': 20,
+    });
+    const included = data.included || [];
+
+    return (data.data || []).map((item) => {
+      const personRel = item.relationships?.person?.data;
+      const person = personRel
+        ? included.find((p) => p.type === 'people' && String(p.id) === String(personRel.id))
+        : null;
+
+      return {
+        id: item.id,
+        role: item.attributes?.role || 'Author / Artist',
+        person: person
+          ? {
+              id: person.id,
+              name: person.attributes?.name || 'Unknown Creator',
+              image: person.attributes?.image?.original || person.attributes?.image?.medium || null,
+            }
+          : null,
+      };
+    }).filter((s) => s.person !== null);
+  } catch {
+    return [];
+  }
+}
+
+export async function getMangaCharacters(mangaId) {
+  try {
+    const data = await fetchKitsu(`/manga/${mangaId}/manga-characters`, {
+      include: 'character',
+      'page[limit]': 20,
+    });
+    const included = data.included || [];
+
+    return (data.data || []).map((item) => {
+      const charRel = item.relationships?.character?.data;
+      const character = charRel
+        ? included.find((inc) => inc.type === 'characters' && String(inc.id) === String(charRel.id))
+        : null;
+
+      if (!character) return null;
+      const attrs = character.attributes || {};
+
+      return {
+        id: character.id,
+        role: item.attributes?.role || 'Main',
+        name: attrs.canonicalName || attrs.name || 'Unknown Character',
+        image: attrs.image?.original || attrs.image?.medium || null,
+      };
+    }).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+export async function getMangaRelations(mangaId) {
+  try {
+    const data = await fetchKitsu(`/manga/${mangaId}/media-relationships`, {
+      include: 'destination',
+      'page[limit]': 10,
+    });
+    const included = data.included || [];
+
+    return (data.data || []).map((rel) => {
+      const destRel = rel.relationships?.destination?.data;
+      const dest = destRel
+        ? included.find((item) => item.type === destRel.type && String(item.id) === String(destRel.id))
+        : null;
+
+      if (!dest) return null;
+      const attrs = dest.attributes || {};
+
+      return {
+        id: rel.id,
+        role: rel.attributes?.role || 'related',
+        type: destRel.type,
+        destination: {
+          id: dest.id,
+          canonicalTitle: attrs.canonicalTitle || 'Unknown Title',
+          posterImage: attrs.posterImage?.small || attrs.posterImage?.medium || null,
+          subtype: attrs.subtype || destRel.type,
+          startDate: attrs.startDate || null,
+        },
+      };
+    }).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+export async function getMangaMappings(mangaId) {
+  try {
+    const data = await fetchKitsu(`/manga/${mangaId}/mappings`, { 'page[limit]': 20 });
+
+    const externalUrls = {
+      'myanimelist/manga': (id) => `https://myanimelist.net/manga/${id}`,
+      'mangaupdates': (id) => `https://www.mangaupdates.com/series.html?id=${id}`,
+      'anilist/manga': (id) => `https://anilist.co/manga/${id}`,
+    };
+
+    return (data.data || []).map((m) => {
+      const site = m.attributes?.externalSite || '';
+      const extId = m.attributes?.externalId || '';
+      const urlBuilder = externalUrls[site];
+
+      return {
+        id: m.id,
+        site,
+        externalId: extId,
+        url: urlBuilder ? urlBuilder(extId) : null,
+      };
+    }).filter((m) => m.url !== null);
+  } catch {
+    return [];
+  }
+}
+
+// -------------------------------------------------------------
+// Service Exports (Placed at the bottom to avoid TDZ errors)
+// -------------------------------------------------------------
+
+export const animeService = {
+  getTrending: getTrendingAnime,
+  getTopRated: getTopRatedAnime,
+  getPopular: getPopularAnime,
+  searchAnime,
+  getAnimeDetails,
+  getAnimeEpisodes: getAllAnimeEpisodes,
+  getAnimeCastings,
+  getSeasonalAnime,
+  getAnimeStreamingLinks,
+  getAnimeReviews,
+  getAnimeRelations,
+  getAnimeProductions,
+  getAnimeStaff,
+  getAnimeMappings,
+  // getAnimeQuotes,
+  getAllCategories,
+  getAnimeSourceManga,
+  getFranchiseInstallments,
+  searchCharacters,
+  getPersonDetails,
+  getCharacterDetails,
+  getCharacterMediaAndCastings,
+  // getCharacterQuotes,
+  getPersonVoiceActingRoles,
+  getPersonStaffRoles,
+  getCategories: getAllCategories,
+};
+
+export const mangaService = {
+  searchManga,
+  getTrendingManga,
+  getMangaDetails,
+  getMangaChapters,
+  getMangaStaff,
+  getMangaCharacters,
+  getMangaRelations,
+  getMangaMappings,
+  normalizeManga,
+};

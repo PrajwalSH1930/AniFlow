@@ -15,7 +15,7 @@ import Characters from './pages/Characters';
 import CharacterDetails from './pages/CharacterDetails';
 import MangaExplore from './pages/MangaExplore';
 import MangaDetails from './pages/MangaDetails';
-
+import PersonDetails from './pages/PersonDetails';
 export default function App() {
   return (
     <ErrorBoundary>
@@ -35,6 +35,8 @@ export default function App() {
                   <Route path="/characters/:id" element={<CharacterDetails />} />
                   <Route path="/manga" element={<MangaExplore />} />
                   <Route path="/manga/:id" element={<MangaDetails />} />
+                  // In src/App.jsx
+                  <Route path="/people/:id" element={<PersonDetails />} />
                 </Routes>
               </main>
               <Footer />

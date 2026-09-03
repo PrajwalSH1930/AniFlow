@@ -8,7 +8,8 @@ import {
   ExternalLink, 
   Quote, 
   Sparkles, 
-  Film
+  Film,
+  User
 } from 'lucide-react';
 
 export default function CharacterDetails() {
@@ -22,10 +23,16 @@ export default function CharacterDetails() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Determine origin from navigation state
+  // 1. DYNAMIC ORIGIN CHECK (Anime, Manga, or Character Directory)
   const previousPath = location.state?.from?.pathname || '';
   const isFromAnime = previousPath.startsWith('/anime/');
-  const backLabel = isFromAnime ? 'Back to Anime' : 'Back to Characters';
+  const isFromManga = previousPath.startsWith('/manga/');
+
+  const backLabel = isFromAnime 
+    ? 'Back to Anime' 
+    : isFromManga 
+    ? 'Back to Manga' 
+    : 'Back to Characters';
 
   const handleBack = () => {
     if (location.state?.from) {
@@ -44,22 +51,20 @@ export default function CharacterDetails() {
         setError(null);
         window.scrollTo({ top: 0, behavior: 'smooth' });
 
-        const [charRes, appearancesRes, quotesRes] = await Promise.allSettled([
-          animeService.getCharacterDetails(id),
-          animeService.getCharacterMediaAndCastings(id),
-          animeService.getCharacterQuotes(id),
-        ]);
+        const [charRes, appearancesRes] = await Promise.allSettled([
+  animeService.getCharacterDetails(id),
+  animeService.getCharacterMediaAndCastings(id),
+]);
 
-        if (active) {
-          if (charRes.status === 'fulfilled' && charRes.value) {
-            setCharacter(charRes.value);
-          } else {
-            throw new Error('Character not found.');
-          }
+if (active) {
+  if (charRes.status === 'fulfilled' && charRes.value) {
+    setCharacter(charRes.value);
+  } else {
+    throw new Error('Character not found.');
+  }
 
-          setAppearances(appearancesRes.status === 'fulfilled' ? appearancesRes.value : []);
-          setQuotes(quotesRes.status === 'fulfilled' ? quotesRes.value : []);
-        }
+  setAppearances(appearancesRes.status === 'fulfilled' ? appearancesRes.value : []);
+}
       } catch (err) {
         if (active) {
           setError(err.message || 'Failed to load character details.');
@@ -232,7 +237,7 @@ export default function CharacterDetails() {
           {/* Anime & Manga Appearances */}
           <div className="space-y-3 pt-2">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-              <Film className="w-3.5 h-3.5 text-brand-primary" /> Anime Appearances & Voice Actors
+              <Film className="w-3.5 h-3.5 text-brand-primary" /> Appearances & Voice Actors
             </h3>
 
             {appearances.length === 0 ? (
@@ -244,9 +249,10 @@ export default function CharacterDetails() {
                     key={item.mediaId}
                     className="flex items-start justify-between bg-slate-900/70 border border-slate-800/80 rounded-xl p-3 hover:border-slate-700 transition-colors gap-3"
                   >
-                    {/* Media Info */}
+                    {/* Media Info (Dynamic Anime vs Manga Link) */}
                     <Link
-                      to={`/anime/${item.mediaId}`}
+                      to={`/${item.mediaType || 'anime'}/${item.mediaId}`}
+                      state={{ from: location }}
                       className="flex items-start gap-3 min-w-0 flex-1 group"
                     >
                       <img
@@ -267,25 +273,36 @@ export default function CharacterDetails() {
                       </div>
                     </Link>
 
-                    {/* Voice Actor Column */}
+                    {/* Voice Actor Column -> Clickable Link to /people/:id */}
                     {item.voiceActors.length > 0 && (
                       <div className="flex flex-col gap-1.5 shrink-0 pl-3 border-l border-slate-800/80 max-w-[130px]">
                         {item.voiceActors.map((va) => (
-                          <div key={va.id} className="flex items-center gap-2 justify-end text-right">
+                          <Link
+                            key={va.id}
+                            to={`/people/${va.id}`}
+                            state={{ from: location }}
+                            className="flex items-center gap-2 justify-end text-right group/va hover:opacity-85 transition-opacity"
+                          >
                             <div className="min-w-0">
-                              <h5 className="text-[11px] font-medium text-slate-200 truncate">{va.name}</h5>
+                              <h5 className="text-[11px] font-medium text-slate-200 group-hover/va:text-brand-primary transition-colors truncate">
+                                {va.name}
+                              </h5>
                               <span className="text-[9px] text-slate-400 flex items-center justify-end gap-0.5">
                                 <Mic className="w-2.5 h-2.5" /> {va.language}
                               </span>
                             </div>
-                            {va.image && (
+                            {va.image ? (
                               <img
                                 src={va.image}
                                 alt={va.name}
-                                className="w-7 h-8 rounded-md object-cover shrink-0 border border-slate-700"
+                                className="w-7 h-8 rounded-md object-cover shrink-0 border border-slate-700 group-hover/va:border-brand-primary/50 transition-colors"
                               />
+                            ) : (
+                              <div className="w-7 h-8 rounded-md bg-slate-800 flex items-center justify-center text-slate-600 shrink-0 border border-slate-700">
+                                <User className="w-3.5 h-3.5" />
+                              </div>
                             )}
-                          </div>
+                          </Link>
                         ))}
                       </div>
                     )}

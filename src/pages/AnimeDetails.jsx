@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import { animeService } from '../services/kitsuApi';
 import { useWatchlist, WATCHLIST_STATUSES } from '../context/WatchlistContext';
 import ImageWithFallback from '../components/ImageWithFallback';
@@ -29,12 +29,13 @@ import {
   BookOpen,
   GitCommit
 } from 'lucide-react';
-import { useLocation } from 'react-router-dom';
 
 const CHUNK_SIZE = 50;
 
 export default function AnimeDetails() {
   const { id } = useParams();
+  const location = useLocation();
+
   const [anime, setAnime] = useState(null);
   const [episodes, setEpisodes] = useState([]);
   const [castings, setCastings] = useState([]);
@@ -44,7 +45,7 @@ export default function AnimeDetails() {
   const [productions, setProductions] = useState([]);
   const [staff, setStaff] = useState([]);
   const [mappings, setMappings] = useState([]);
-  const [quotes, setQuotes] = useState([]);
+  // const [quotes, setQuotes] = useState([]);
   const [sourceManga, setSourceManga] = useState([]);
   const [installments, setInstallments] = useState([]);
 
@@ -53,7 +54,6 @@ export default function AnimeDetails() {
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedRange, setSelectedRange] = useState(0);
   const [episodeSearch, setEpisodeSearch] = useState('');
-  const location = useLocation();
 
   const {
     isInWatchlist,
@@ -79,55 +79,53 @@ export default function AnimeDetails() {
         setError(null);
         window.scrollTo({ top: 0, behavior: 'smooth' });
 
-        // Safe parallel fetching: even if optional endpoints fail, main anime details load cleanly
-        const [
-          detailsRes,
-          episodesRes,
-          castingsRes,
-          streamRes,
-          reviewsRes,
-          relationsRes,
-          productionsRes,
-          staffRes,
-          mappingsRes,
-          quotesRes,
-          sourceMangaRes,
-          installmentsRes,
-        ] = await Promise.allSettled([
-          animeService.getAnimeDetails(id),
-          animeService.getAnimeEpisodes(id, 300),
-          animeService.getAnimeCastings(id, 40),
-          animeService.getAnimeStreamingLinks(id),
-          animeService.getAnimeReviews(id, 6),
-          animeService.getAnimeRelations(id),
-          animeService.getAnimeProductions(id),
-          animeService.getAnimeStaff(id),
-          animeService.getAnimeMappings(id),
-          animeService.getAnimeQuotes(id),
-          animeService.getAnimeSourceManga(id),
-          animeService.getFranchiseInstallments(id),
-        ]);
+        // In AnimeDetails.jsx -> loadAllDetails():
+// 1. In AnimeDetails.jsx state declarations, remove:
+// const [quotes, setQuotes] = useState([]);
 
-        if (!isCancelled) {
-          if (detailsRes.status === 'fulfilled' && detailsRes.value) {
-            setAnime(detailsRes.value);
-          } else {
-            throw new Error('Failed to load anime details.');
-          }
+// 2. In loadAllDetails() Promise.allSettled, update the batch to:
+const [
+  detailsRes,
+  episodesRes,
+  castingsRes,
+  streamRes,
+  reviewsRes,
+  relationsRes,
+  productionsRes,
+  staffRes,
+  mappingsRes,
+  sourceMangaRes,
+] = await Promise.allSettled([
+  animeService.getAnimeDetails(id),
+  animeService.getAnimeEpisodes(id, 300),
+  animeService.getAnimeCastings(id, 40),
+  animeService.getAnimeStreamingLinks(id),
+  animeService.getAnimeReviews(id, 6),
+  animeService.getAnimeRelations(id),
+  animeService.getAnimeProductions(id),
+  animeService.getAnimeStaff(id),
+  animeService.getAnimeMappings(id),
+  animeService.getAnimeSourceManga(id),
+]);
 
-          setEpisodes(episodesRes.status === 'fulfilled' ? episodesRes.value : []);
-          setCastings(castingsRes.status === 'fulfilled' ? castingsRes.value : []);
-          setStreamingLinks(streamRes.status === 'fulfilled' ? streamRes.value : []);
-          setReviews(reviewsRes.status === 'fulfilled' ? reviewsRes.value : []);
-          setRelations(relationsRes.status === 'fulfilled' ? relationsRes.value : []);
-          setProductions(productionsRes.status === 'fulfilled' ? productionsRes.value : []);
-          setStaff(staffRes.status === 'fulfilled' ? staffRes.value : []);
-          setMappings(mappingsRes.status === 'fulfilled' ? mappingsRes.value : []);
-          setQuotes(quotesRes.status === 'fulfilled' ? quotesRes.value : []);
-          setSourceManga(sourceMangaRes.status === 'fulfilled' ? sourceMangaRes.value : []);
-          setInstallments(installmentsRes.status === 'fulfilled' ? installmentsRes.value : []);
-          setSelectedRange(0);
-        }
+if (!isCancelled) {
+  if (detailsRes.status === 'fulfilled' && detailsRes.value) {
+    setAnime(detailsRes.value);
+  } else {
+    throw new Error('Failed to load anime details.');
+  }
+
+  setEpisodes(episodesRes.status === 'fulfilled' ? episodesRes.value : []);
+  setCastings(castingsRes.status === 'fulfilled' ? castingsRes.value : []);
+  setStreamingLinks(streamRes.status === 'fulfilled' ? streamRes.value : []);
+  setReviews(reviewsRes.status === 'fulfilled' ? reviewsRes.value : []);
+  setRelations(relationsRes.status === 'fulfilled' ? relationsRes.value : []);
+  setProductions(productionsRes.status === 'fulfilled' ? productionsRes.value : []);
+  setStaff(staffRes.status === 'fulfilled' ? staffRes.value : []);
+  setMappings(mappingsRes.status === 'fulfilled' ? mappingsRes.value : []);
+  setSourceManga(sourceMangaRes.status === 'fulfilled' ? sourceMangaRes.value : []);
+  setSelectedRange(0);
+}
       } catch (err) {
         if (!isCancelled) {
           console.error('Error fetching anime details:', err);
@@ -217,7 +215,7 @@ export default function AnimeDetails() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-36 sm:-mt-44 relative z-10">
         <div className="flex flex-col md:flex-row gap-8 items-start">
           
-          {/* Left Column (Full responsive width on mobile, fixed on desktop) */}
+          {/* Left Column */}
           <div className="w-full max-w-sm md:max-w-none md:w-64 flex-shrink-0 mx-auto md:mx-0 space-y-4">
             
             {/* Poster Card */}
@@ -353,7 +351,7 @@ export default function AnimeDetails() {
 
           </div>
 
-          {/* Right Column (Constrained with min-w-0 to prevent horizontal flex spill) */}
+          {/* Right Column */}
           <div className="flex-1 min-w-0 space-y-6 w-full">
             
             {/* Title & Badges */}
@@ -394,7 +392,7 @@ export default function AnimeDetails() {
                 )}
               </div>
 
-              {/* Studios & Production Team Tags */}
+              {/* Studios & Production Team */}
               {studios.length > 0 && (
                 <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 pt-1">
                   <span className="text-xs text-slate-500 flex items-center gap-1">
@@ -470,7 +468,7 @@ export default function AnimeDetails() {
               </div>
             )}
 
-            {/* Chronological Installments Order */}
+            {/* Franchise Installments Timeline */}
             {installments.length > 1 && (
               <div className="space-y-2 pt-1 w-full overflow-hidden">
                 <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
@@ -562,76 +560,55 @@ export default function AnimeDetails() {
             </div>
 
             {/* Tab 1: Overview, Quotes & Manga Adaptation */}
-            {activeTab === 'overview' && (
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-2">
-                    Synopsis
-                  </h3>
-                  <p className="text-sm sm:text-base text-slate-300 leading-relaxed whitespace-pre-line">
-                    {anime.synopsis}
-                  </p>
-                </div>
+            {/* Tab 1: Overview & Manga Adaptation */}
+{activeTab === 'overview' && (
+  <div className="space-y-6">
+    <div>
+      <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-2">
+        Synopsis
+      </h3>
+      <p className="text-sm sm:text-base text-slate-300 leading-relaxed whitespace-pre-line">
+        {anime.synopsis}
+      </p>
+    </div>
 
-                {/* Original Source Material / Manga */}
-                {sourceManga.length > 0 && (
-                  <div className="pt-4 border-t border-slate-800/80 space-y-3">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                      <BookOpen className="w-3.5 h-3.5 text-brand-primary" /> Original Source Manga
-                    </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {sourceManga.map((manga) => (
-                        <div
-                          key={manga.id}
-                          className="flex items-center gap-3 p-3 rounded-xl bg-slate-900/60 border border-slate-800/80"
-                        >
-                          {manga.posterImage && (
-                            <img
-                              src={manga.posterImage}
-                              alt={manga.title}
-                              className="w-12 h-16 object-cover rounded-lg flex-shrink-0"
-                            />
-                          )}
-                          <div className="min-w-0 flex-1">
-                            <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">
-                              {manga.subtype} • {manga.status}
-                            </span>
-                            <h4 className="text-xs font-bold text-slate-200 truncate">{manga.title}</h4>
-                            <p className="text-[11px] text-slate-400">
-                              {manga.volumeCount} Volumes • {manga.chapterCount} Chapters
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Memorable Dialogue & Quotes */}
-                {quotes.length > 0 && (
-                  <div className="pt-4 border-t border-slate-800/80 space-y-3">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                      <Quote className="w-3.5 h-3.5 text-brand-primary" /> Memorable Dialogue & Quotes
-                    </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {quotes.map((q) => (
-                        <div
-                          key={q.id}
-                          className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800/80 relative space-y-2"
-                        >
-                          <p className="text-xs text-slate-300 italic leading-relaxed">
-                            "{q.content}"
-                          </p>
-                          <div className="text-[11px] font-semibold text-brand-primary text-right">
-                            — {q.characterName}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+    {/* Original Source Material / Manga */}
+    {sourceManga.length > 0 && (
+      <div className="pt-4 border-t border-slate-800/80 space-y-3">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+          <BookOpen className="w-3.5 h-3.5 text-brand-primary" /> Original Source Manga
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {sourceManga.map((manga) => (
+            <Link
+              key={manga.id}
+              to={`/manga/${manga.id}`}
+              state={{ from: location }}
+              className="flex items-center gap-3 p-3 rounded-xl bg-slate-900/60 border border-slate-800/80 hover:border-brand-primary/40 transition-colors"
+            >
+              {manga.posterImage && (
+                <img
+                  src={manga.posterImage}
+                  alt={manga.title}
+                  className="w-12 h-16 object-cover rounded-lg flex-shrink-0"
+                />
+              )}
+              <div className="min-w-0 flex-1">
+                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">
+                  {manga.subtype} • {manga.status}
+                </span>
+                <h4 className="text-xs font-bold text-slate-200 truncate">{manga.title}</h4>
+                <p className="text-[11px] text-slate-400">
+                  {manga.volumeCount} Volumes • {manga.chapterCount} Chapters
+                </p>
               </div>
-            )}
+            </Link>
+          ))}
+        </div>
+      </div>
+    )}
+  </div>
+)}
 
             {/* Tab 2: Episodes */}
             {activeTab === 'episodes' && (
@@ -750,74 +727,81 @@ export default function AnimeDetails() {
             )}
 
             {/* Tab 3: Characters */}
-{activeTab === 'characters' && (
-  <div className="space-y-4">
-    {castings.length === 0 ? (
-      <p className="text-sm text-slate-500 py-6">No character roster data available for this title.</p>
-    ) : (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-        {castings.map((cast) => (
-          <div
-            key={cast.id}
-            className="flex items-start justify-between bg-slate-900/70 border border-slate-800/80 rounded-xl p-3 hover:border-slate-700 transition-colors gap-3"
-          >
-            {/* 👇 UPDATED: Changed from <div> to <Link> to navigate to Character Details */}
-            <Link
-              to={`/characters/${cast.characterId || cast.id}`}
-              state={{ from: location }}
-              className="group/char flex items-start gap-3 min-w-0 flex-1 hover:opacity-90 transition-opacity"
-            >
-              <div className="w-12 h-14 rounded-lg bg-slate-800 overflow-hidden flex-shrink-0 border border-slate-700/50 group-hover/char:border-brand-primary/40 transition-colors">
-                {cast.image ? (
-                  <img src={cast.image} alt={cast.name} className="w-full h-full object-cover" loading="lazy" />
+            {activeTab === 'characters' && (
+              <div className="space-y-4">
+                {castings.length === 0 ? (
+                  <p className="text-sm text-slate-500 py-6">No character roster data available for this title.</p>
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-slate-600">
-                    <User className="w-5 h-5" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    {castings.map((cast) => (
+                      <div
+                        key={cast.id}
+                        className="flex items-start justify-between bg-slate-900/70 border border-slate-800/80 rounded-xl p-3 hover:border-slate-700 transition-colors gap-3"
+                      >
+                        {/* Link to Character Details */}
+                        <Link
+                          to={`/characters/${cast.characterId || cast.id}`}
+                          state={{ from: location }}
+                          className="group/char flex items-start gap-3 min-w-0 flex-1 hover:opacity-90 transition-opacity"
+                        >
+                          <div className="w-12 h-14 rounded-lg bg-slate-800 overflow-hidden flex-shrink-0 border border-slate-700/50 group-hover/char:border-brand-primary/40 transition-colors">
+                            {cast.image ? (
+                              <img src={cast.image} alt={cast.name} className="w-full h-full object-cover" loading="lazy" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-slate-600">
+                                <User className="w-5 h-5" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="min-w-0 pr-2">
+                            <h4 className="text-xs font-semibold text-slate-100 line-clamp-1 group-hover/char:text-brand-primary transition-colors">
+                              {cast.name}
+                            </h4>
+                            <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-brand-primary/10 text-brand-primary border border-brand-primary/20 uppercase tracking-wider">
+                              {cast.role.toLowerCase()}
+                            </span>
+                          </div>
+                        </Link>
+
+                        {/* Link to Voice Actor / People Page */}
+                        <div className="flex flex-col gap-2 flex-shrink-0 pl-3 border-l border-slate-800/80 max-w-[170px]">
+                          {cast.voiceActors.length > 0 ? (
+                            cast.voiceActors.map((va) => (
+                              <Link
+                                key={va.id}
+                                to={`/people/${va.id}`}
+                                state={{ from: location }}
+                                className="flex items-center gap-2 justify-end text-right group/va hover:opacity-85 transition-opacity"
+                              >
+                                <div className="min-w-0">
+                                  <h5 className="text-[11px] font-medium text-slate-200 group-hover/va:text-brand-primary transition-colors truncate">
+                                    {va.name}
+                                  </h5>
+                                  <span className="text-[9px] text-slate-400 flex items-center justify-end gap-0.5">
+                                    <Mic className="w-2.5 h-2.5" /> {va.language}
+                                  </span>
+                                </div>
+                                <div className="w-8 h-9 rounded-md bg-slate-800 overflow-hidden flex-shrink-0 border border-slate-700/50 group-hover/va:border-brand-primary/50 transition-colors">
+                                  {va.image ? (
+                                    <img src={va.image} alt={va.name} className="w-full h-full object-cover" loading="lazy" />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-slate-600">
+                                      <User className="w-3.5 h-3.5" />
+                                    </div>
+                                  )}
+                                </div>
+                              </Link>
+                            ))
+                          ) : (
+                            <div className="text-[11px] text-slate-500 italic py-1">No VA credited</div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
-              <div className="min-w-0 pr-2">
-                <h4 className="text-xs font-semibold text-slate-100 line-clamp-1 group-hover/char:text-brand-primary transition-colors">
-                  {cast.name}
-                </h4>
-                <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-brand-primary/10 text-brand-primary border border-brand-primary/20 uppercase tracking-wider">
-                  {cast.role.toLowerCase()}
-                </span>
-              </div>
-            </Link>
-
-            {/* Voice Actor column remains separate so it doesn't trigger the character link */}
-            <div className="flex flex-col gap-2 flex-shrink-0 pl-3 border-l border-slate-800/80 max-w-[170px]">
-              {cast.voiceActors.length > 0 ? (
-                cast.voiceActors.map((va) => (
-                  <div key={va.id} className="flex items-center gap-2 justify-end text-right">
-                    <div className="min-w-0">
-                      <h5 className="text-[11px] font-medium text-slate-200 truncate">{va.name}</h5>
-                      <span className="text-[9px] text-slate-400 flex items-center justify-end gap-0.5">
-                        <Mic className="w-2.5 h-2.5" /> {va.language}
-                      </span>
-                    </div>
-                    <div className="w-8 h-9 rounded-md bg-slate-800 overflow-hidden flex-shrink-0 border border-slate-700/50">
-                      {va.image ? (
-                        <img src={va.image} alt={va.name} className="w-full h-full object-cover" loading="lazy" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-slate-600">
-                          <User className="w-3.5 h-3.5" />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-[11px] text-slate-500 italic py-1">No VA credited</div>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-    )}
-  </div>
-)}
+            )}
 
             {/* Tab 4: Staff & Creators */}
             {activeTab === 'staff' && (
@@ -827,9 +811,11 @@ export default function AnimeDetails() {
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                     {staff.map((s) => (
-                      <div
+                      <Link
                         key={s.id}
-                        className="flex items-center gap-3 p-3 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 transition-colors"
+                        to={`/people/${s.person?.id}`}
+                        state={{ from: location }}
+                        className="flex items-center gap-3 p-3 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-brand-primary/40 transition-colors group"
                       >
                         <div className="w-11 h-11 rounded-full bg-slate-800 overflow-hidden flex-shrink-0 border border-slate-700">
                           {s.person?.image ? (
@@ -841,10 +827,12 @@ export default function AnimeDetails() {
                           )}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <h4 className="text-xs font-bold text-slate-200 truncate">{s.person?.name}</h4>
+                          <h4 className="text-xs font-bold text-slate-200 group-hover:text-brand-primary transition-colors truncate">
+                            {s.person?.name}
+                          </h4>
                           <span className="text-[10px] text-brand-primary font-medium truncate block">{s.role}</span>
                         </div>
-                      </div>
+                      </Link>
                     ))}
                   </div>
                 )}
